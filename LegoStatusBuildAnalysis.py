@@ -56,14 +56,26 @@ import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
+import logging
+from pathlib import Path
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('lego_analysis.log'),
+        logging.StreamHandler()
+    ]
+)
 
 class LegoColorReport:
     def __init__(self, folder_path, color_mapping_path, output_pdf):
-        self.folder_path = folder_path
-        self.color_mapping_path = color_mapping_path
+        self.folder_path = self._validate_folder_path(folder_path)
+        self.color_mapping_path = self._validate_file_path(color_mapping_path)
         self.output_pdf = output_pdf
         self.color_mapping = self.load_color_mapping()
-        self.xml_files = [f for f in os.listdir(self.folder_path) if f.endswith('.xml')]
+        self.xml_files = self._get_xml_files()
         self.all_warnings = []
         self.overall_status = []
         self.parts_count = []
@@ -73,18 +85,62 @@ class LegoColorReport:
         self.overall_color_distribution = defaultdict(int)
         self.overall_color_filled_distribution = defaultdict(int)
 
+    def _validate_folder_path(self, folder_path):
+        """Validate that the folder path exists and is a directory"""
+        path = Path(folder_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Folder not found: {folder_path}")
+        if not path.is_dir():
+            raise NotADirectoryError(f"Path is not a directory: {folder_path}")
+        return folder_path
+    
+    def _validate_file_path(self, file_path):
+        """Validate that the file path exists and is a file"""
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        if not path.is_file():
+            raise IsADirectoryError(f"Path is not a file: {file_path}")
+        return file_path
+    
+    def _get_xml_files(self):
+        """Get XML files with proper error handling"""
+        try:
+            xml_files = [f for f in os.listdir(self.folder_path) if f.endswith('.xml')]
+            if not xml_files:
+                logging.warning(f"No XML files found in {self.folder_path}")
+            return xml_files
+        except PermissionError:
+            logging.error(f"Permission denied accessing folder: {self.folder_path}")
+            raise
+        except Exception as e:
+            logging.error(f"Error reading folder {self.folder_path}: {e}")
+            raise
+
     def load_color_mapping(self):
-        with open(self.color_mapping_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        """Load color mapping with proper error handling"""
+        try:
+            with open(self.color_mapping_path, 'r', encoding='utf-8') as f:
+                color_mapping = json.load(f)
+                if not isinstance(color_mapping, dict):
+                    raise ValueError("Color mapping must be a dictionary")
+                logging.info(f"Loaded {len(color_mapping)} color mappings")
+                return color_mapping
+        except json.JSONDecodeError as e:
+            logging.error(f"Invalid JSON in color mapping file: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Error loading color mapping: {e}")
+            raise
 
     def process(self):
-        print("XML files found:", self.xml_files)
+        logging.info("XML files found: %s", self.xml_files)
         with PdfPages(self.output_pdf) as pdf:
             for xml_file in self.xml_files:
                 self.process_single_file(xml_file, pdf)
             self.add_overall_summary(pdf)
             self.add_warnings_page(pdf)
-        print(f"Report saved to {self.output_pdf}")
+        logging.info("Report saved to %s", self.output_pdf)
 
     def process_single_file(self, xml_file, pdf):
         file_path = os.path.join(self.folder_path, xml_file)
@@ -94,8 +150,12 @@ class LegoColorReport:
         set_min_qty = 0
         set_qty_filled = 0
 
-        tree = ET.parse(file_path)
-        root = tree.getroot()
+        try:
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+        except ET.ParseError as e:
+            logging.error("Error parsing XML file %s: %s", file_path, e)
+            return
 
         for item in root.findall('ITEM'):
             color = self.get_xml_text(item, 'COLOR', default='0', numeric=True)
@@ -254,57 +314,167 @@ class LegoColorReport:
 
 class LegoXmlCombiner:
     def __init__(self, folder_path, filtered_folder, output_file, excluded_files=None):
-        self.folder_path = folder_path
+        self.folder_path = self._validate_folder_path(folder_path)
         self.filtered_folder = filtered_folder
         self.output_file = output_file
         self.excluded_files = excluded_files if excluded_files else []
-        os.makedirs(self.filtered_folder, exist_ok=True)
-        self.xml_files = [f for f in os.listdir(self.folder_path) if f.endswith('.xml') and f not in self.excluded_files]
+        self._create_output_directory()
+        self.xml_files = self._get_xml_files()
         self.combined_root = ET.Element("INVENTORY")
         self.item_tracker = {}
+        self.stats = {
+            'total_items_processed': 0,
+            'items_combined': 0,
+            'files_processed': 0,
+            'errors': []
+        }
+
+    def _validate_folder_path(self, folder_path):
+        """Validate that the folder path exists and is a directory"""
+        path = Path(folder_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Folder not found: {folder_path}")
+        if not path.is_dir():
+            raise NotADirectoryError(f"Path is not a directory: {folder_path}")
+        return folder_path
+
+    def _create_output_directory(self):
+        """Create output directory if it doesn't exist"""
+        try:
+            os.makedirs(self.filtered_folder, exist_ok=True)
+            logging.info(f"Output directory ready: {self.filtered_folder}")
+        except Exception as e:
+            logging.error(f"Error creating output directory {self.filtered_folder}: {e}")
+            raise
+
+    def _get_xml_files(self):
+        """Get XML files with proper filtering and error handling"""
+        try:
+            all_files = [f for f in os.listdir(self.folder_path) if f.endswith('.xml')]
+            xml_files = [f for f in all_files if f not in self.excluded_files]
+            logging.info(f"Found {len(all_files)} XML files, {len(xml_files)} will be processed")
+            logging.info(f"Excluded files: {self.excluded_files}")
+            return xml_files
+        except Exception as e:
+            logging.error(f"Error reading folder {self.folder_path}: {e}")
+            raise
 
     def process(self):
-        print("XML files found (excluding specified files):", self.xml_files)
+        """Process all XML files and generate combined output"""
+        logging.info("XML files found (excluding specified files): %s", self.xml_files)
+        
         for xml_file in self.xml_files:
             self.process_single_file(xml_file)
+        
         self.write_combined_xml()
+        self.print_statistics()
 
     def process_single_file(self, xml_file):
+        """Process a single XML file with comprehensive error handling"""
         file_path = os.path.join(self.folder_path, xml_file)
-        tree = ET.parse(file_path)
-        root = tree.getroot()
+        items_processed = 0
+        items_added = 0
+        
+        try:
+            logging.info(f"Processing file: {xml_file}")
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+            
+            # Validate XML structure
+            if root.tag != 'INVENTORY':
+                logging.warning(f"Unexpected root tag '{root.tag}' in {xml_file}")
+                
+        except ET.ParseError as e:
+            error_msg = f"XML parsing error in {xml_file}: {e}"
+            logging.error(error_msg)
+            self.stats['errors'].append(error_msg)
+            return
+        except Exception as e:
+            error_msg = f"Error processing {xml_file}: {e}"
+            logging.error(error_msg)
+            self.stats['errors'].append(error_msg)
+            return
+
         filtered_root = ET.Element(root.tag)
 
         for item in root.findall('ITEM'):
-            min_qty = self.get_xml_int(item, 'MINQTY')
-            item_type = self.get_xml_text(item, 'ITEMID')
-            color = self.get_xml_text(item, 'COLOR')
+            try:
+                items_processed += 1
+                min_qty = self.get_xml_int(item, 'MINQTY')
+                item_type = self.get_xml_text(item, 'ITEMID')
+                color = self.get_xml_text(item, 'COLOR')
 
-            if min_qty > 0 and item_type:
-                # Use empty string for color if None to ensure consistency
-                color = color if color else ""
-                item_key = (item_type, color)
-                # Combined file logic
-                if item_key in self.item_tracker:
-                    existing_item = self.item_tracker[item_key]
-                    existing_min_qty = int(existing_item.find('MINQTY').text)
-                    existing_item.find('MINQTY').text = str(existing_min_qty + min_qty)
-                else:
-                    new_combined_item = self.copy_item(item, xml_file)
-                    self.combined_root.append(new_combined_item)
-                    self.item_tracker[item_key] = new_combined_item
-                # Filtered file logic
-                new_filtered_item = self.copy_item(item)
-                filtered_root.append(new_filtered_item)
+                if min_qty > 0 and item_type:
+                    # Use empty string for color if None to ensure consistency
+                    color = color if color else ""
+                    item_key = (item_type, color)
+                    
+                    # Combined file logic
+                    if item_key in self.item_tracker:
+                        existing_item = self.item_tracker[item_key]
+                        existing_min_qty = int(existing_item.find('MINQTY').text)
+                        existing_item.find('MINQTY').text = str(existing_min_qty + min_qty)
+                        self.stats['items_combined'] += 1
+                    else:
+                        new_combined_item = self.copy_item(item, xml_file)
+                        self.combined_root.append(new_combined_item)
+                        self.item_tracker[item_key] = new_combined_item
+                    
+                    # Filtered file logic
+                    new_filtered_item = self.copy_item(item)
+                    filtered_root.append(new_filtered_item)
+                    items_added += 1
+                    
+            except Exception as e:
+                error_msg = f"Error processing item in {xml_file}: {e}"
+                logging.warning(error_msg)
+                self.stats['errors'].append(error_msg)
+                continue
 
-        filtered_file_path = os.path.join(self.filtered_folder, f"filtered_{xml_file}")
-        filtered_tree = ET.ElementTree(filtered_root)
-        filtered_tree.write(filtered_file_path, encoding='utf-8', xml_declaration=True)
+        # Write filtered file
+        try:
+            filtered_file_path = os.path.join(self.filtered_folder, f"filtered_{xml_file}")
+            filtered_tree = ET.ElementTree(filtered_root)
+            filtered_tree.write(filtered_file_path, encoding='utf-8', xml_declaration=True)
+            logging.info(f"Created filtered file: {filtered_file_path} ({items_added} items)")
+        except Exception as e:
+            error_msg = f"Error writing filtered file for {xml_file}: {e}"
+            logging.error(error_msg)
+            self.stats['errors'].append(error_msg)
+
+        self.stats['total_items_processed'] += items_processed
+        self.stats['files_processed'] += 1
+        logging.info(f"Processed {items_processed} items from {xml_file}, {items_added} added to output")
 
     def write_combined_xml(self):
-        combined_tree = ET.ElementTree(self.combined_root)
-        combined_tree.write(self.output_file, encoding='utf-8', xml_declaration=True)
-        print(f"Combined wanted list XML file created: {self.output_file}")
+        """Write combined XML file with error handling"""
+        try:
+            combined_tree = ET.ElementTree(self.combined_root)
+            combined_tree.write(self.output_file, encoding='utf-8', xml_declaration=True)
+            logging.info("Combined wanted list XML file created: %s", self.output_file)
+            logging.info(f"Combined file contains {len(self.item_tracker)} unique items")
+        except Exception as e:
+            error_msg = f"Error writing combined XML file: {e}"
+            logging.error(error_msg)
+            self.stats['errors'].append(error_msg)
+            raise
+
+    def print_statistics(self):
+        """Print processing statistics"""
+        stats = self.stats
+        logging.info("=== Processing Statistics ===")
+        logging.info(f"Files processed: {stats['files_processed']}")
+        logging.info(f"Total items processed: {stats['total_items_processed']}")
+        logging.info(f"Unique items in combined file: {len(self.item_tracker)}")
+        logging.info(f"Items combined (duplicates): {stats['items_combined']}")
+        logging.info(f"Errors encountered: {len(stats['errors'])}")
+        
+        if stats['errors']:
+            logging.warning("Errors during processing:")
+            for error in stats['errors'][:5]:  # Show first 5 errors
+                logging.warning(f"  - {error}")
+            if len(stats['errors']) > 5:
+                logging.warning(f"  ... and {len(stats['errors']) - 5} more errors")
 
     @staticmethod
     def copy_item(item, remarks=None):
@@ -330,58 +500,116 @@ class LegoXmlCombiner:
         el = item.find(tag)
         return int(el.text) if el is not None and el.text and el.text.isdigit() else 0
 
+def load_config(config_file='config.json'):
+    """Load configuration from JSON file"""
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+            logging.info(f"Configuration loaded from {config_file}")
+            return config
+    except FileNotFoundError:
+        logging.warning(f"Configuration file {config_file} not found, using default settings")
+        return None
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in configuration file: {e}")
+        raise
+    except Exception as e:
+        logging.error(f"Error loading configuration: {e}")
+        raise
+
+def setup_logging_from_config(config):
+    """Setup logging based on configuration"""
+    if not config or 'logging' not in config:
+        return
+    
+    log_config = config['logging']
+    level = getattr(logging, log_config.get('level', 'INFO'))
+    
+    # Clear existing handlers
+    logging.getLogger().handlers = []
+    
+    # Configure logging
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_config.get('file', 'lego_analysis.log')),
+            logging.StreamHandler()
+        ]
+    )
+
+def run_reports_from_config(config):
+    """Run reports based on configuration"""
+    if not config or 'reports' not in config:
+        logging.warning("No reports configuration found")
+        return
+    
+    for report_cfg in config['reports']:
+        try:
+            logging.info(f"Processing report: {report_cfg.get('name', 'Unnamed')}")
+            
+            # Build full paths
+            output_pdf = report_cfg["output_pdf"]
+            if not os.path.isabs(output_pdf):
+                output_pdf = os.path.join(report_cfg["folder_path"], output_pdf)
+            
+            report = LegoColorReport(
+                folder_path=report_cfg["folder_path"],
+                color_mapping_path=report_cfg["color_mapping_path"],
+                output_pdf=output_pdf
+            )
+            report.process()
+            
+        except Exception as e:
+            logging.error(f"Error processing report {report_cfg.get('name', 'Unnamed')}: {e}")
+            continue
+
+def run_combiners_from_config(config):
+    """Run combiners based on configuration"""
+    if not config or 'combiners' not in config:
+        logging.warning("No combiners configuration found")
+        return
+    
+    for combiner_cfg in config['combiners']:
+        try:
+            logging.info(f"Processing combiner: {combiner_cfg.get('name', 'Unnamed')}")
+            
+            # Build full paths
+            output_file = combiner_cfg["output_file"]
+            if not os.path.isabs(output_file):
+                output_file = os.path.join(combiner_cfg["filtered_folder"], output_file)
+            
+            combiner = LegoXmlCombiner(
+                folder_path=combiner_cfg["folder_path"],
+                filtered_folder=combiner_cfg["filtered_folder"],
+                output_file=output_file,
+                excluded_files=combiner_cfg.get("excluded_files", [])
+            )
+            combiner.process()
+            
+        except Exception as e:
+            logging.error(f"Error processing combiner {combiner_cfg.get('name', 'Unnamed')}: {e}")
+            continue
+
 # --- USAGE EXAMPLES ---
 
 if __name__ == "__main__":
-    # Definizione dei report da generare
-    reports = [
-        {
-            "folder_path": r'C:\Development\BrickLinkReport',
-            "color_mapping_path": 'BL_color_mapping.json',
-            "output_pdf": os.path.join(r'C:\Development\BrickLinkReport', 'LEGO_Set_Color_Quantities_Report.pdf')
-        },
-        {
-            "folder_path": r'C:\Development\BrickLinkReport_Other',
-            "color_mapping_path": 'BL_color_mapping.json',
-            "output_pdf": os.path.join(r'C:\Development\BrickLinkReport_Other', 'LEGO_Set_Color_Quantities_Report_NonLOTR.pdf')
-        }
-    ]
-
-    # Generazione dei report PDF
-    for report_cfg in reports:
-        report = LegoColorReport(
-            folder_path=report_cfg["folder_path"],
-            color_mapping_path=report_cfg["color_mapping_path"],
-            output_pdf=report_cfg["output_pdf"]
-        )
-        report.process()
-
-    # Definizione delle combinazioni XML da generare
-    combiners = [
-        {
-            "folder_path": r'C:\Development\BrickLinkReport',
-            "filtered_folder": r'C:\Development\BrickLinkReport\Filtered',
-            "output_file": os.path.join(r'C:\Development\BrickLinkReport\Filtered', "wanted_list.xml"),
-            "excluded_files": [    
-                "79007 - Battle at the Black Gate.xml",
-                "10333 - Barad-dur.xml",
-                "10237 - Tower of Orthanc.xml"
-            ]
-        },
-        {
-            "folder_path": r'C:\Development\BrickLinkReport_Other',
-            "filtered_folder": r'C:\Development\BrickLinkReport_Other\Filtered',
-            "output_file": os.path.join(r'C:\Development\BrickLinkReport_Other\Filtered', "wanted_list_Other.xml"),
-            "excluded_files": []
-        }
-    ]
-
-    # Generazione dei file XML combinati e filtrati
-    for combiner_cfg in combiners:
-        combiner = LegoXmlCombiner(
-            folder_path=combiner_cfg["folder_path"],
-            filtered_folder=combiner_cfg["filtered_folder"],
-            output_file=combiner_cfg["output_file"],
-            excluded_files=combiner_cfg["excluded_files"]
-        )
-        combiner.process()
+    try:
+        # Try to load configuration from file
+        config = load_config('config.json')
+        
+        if config:
+            setup_logging_from_config(config)
+            logging.info("Starting LEGO analysis with configuration file")
+            
+            # Run reports and combiners based on configuration
+            run_reports_from_config(config)
+            run_combiners_from_config(config)
+            
+            logging.info("All processing completed successfully!")
+        else:
+            logging.warning("No configuration file found, please create config.json")
+            
+    except Exception as e:
+        logging.error(f"Fatal error during processing: {e}")
+        raise

@@ -1,0 +1,2 @@
+matplotlib>=3.5.0
+pathlib>=1.0.0
