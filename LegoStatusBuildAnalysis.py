@@ -280,7 +280,9 @@ class LegoXmlCombiner:
             item_type = self.get_xml_text(item, 'ITEMID')
             color = self.get_xml_text(item, 'COLOR')
 
-            if min_qty > 0 and item_type and color:
+            if min_qty > 0 and item_type:
+                # Use empty string for color if None to ensure consistency
+                color = color if color else ""
                 item_key = (item_type, color)
                 # Combined file logic
                 if item_key in self.item_tracker:
