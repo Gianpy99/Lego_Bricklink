@@ -181,10 +181,10 @@ class ModernReportGenerator:
             
             # Crea le barre orizzontali grouped
             bars_needed = ax.barh(y_pos - bar_height/2, needed_values, bar_height, 
-                                 label='📋 NEEDED (Total Required)', color='#e74c3c', alpha=0.8,
+                                 label='NEEDED (Total Required)', color='#e74c3c', alpha=0.8,
                                  edgecolor='#2c3e50', linewidth=0.5)
             bars_owned = ax.barh(y_pos + bar_height/2, owned_values, bar_height,
-                                label='✅ OWNED (Currently Have)', color='#27ae60', alpha=0.8,
+                                label='OWNED (Currently Have)', color='#27ae60', alpha=0.8,
                                 edgecolor='#2c3e50', linewidth=0.5)
             
             # Personalizza il grafico
@@ -192,7 +192,7 @@ class ModernReportGenerator:
             ax.set_yticklabels(colors_names, fontsize=11, fontweight='bold')
             ax.invert_yaxis()
             ax.set_xlabel('Number of Pieces', fontsize=14, fontweight='bold', color='#2c3e50')
-            ax.set_title('🧱 LEGO Color Comparison: NEEDED vs OWNED\n(Organized by Color - Most Required First)', 
+            ax.set_title('LEGO Color Comparison: NEEDED vs OWNED\n(Organized by Color - Most Required First)', 
                         fontsize=16, fontweight='bold', color='#2c3e50', pad=25)
             
             # Grid e stile
@@ -217,13 +217,13 @@ class ModernReportGenerator:
                 # Indicatore di completamento sulla destra
                 status_x = max_value * 1.15
                 if completion >= 100:
-                    status_icon = "✅ COMPLETE"
+                    status_icon = "COMPLETE"
                     status_color = '#27ae60'
                 elif completion >= 50:
-                    status_icon = "🔄 PARTIAL"
+                    status_icon = "PARTIAL"
                     status_color = '#f39c12'
                 else:
-                    status_icon = "❌ MISSING"
+                    status_icon = "MISSING"
                     status_color = '#e74c3c'
                 
                 ax.text(status_x, i, status_icon, ha='left', va='center', 
@@ -238,7 +238,7 @@ class ModernReportGenerator:
             total_owned = sum(owned_values)
             overall_completion = (total_owned / total_needed * 100) if total_needed > 0 else 0
             
-            stats_text = f"📊 OVERALL STATISTICS:\n"
+            stats_text = f"OVERALL STATISTICS:\n"
             stats_text += f"Total Pieces Needed: {total_needed:,}\n"
             stats_text += f"Total Pieces Owned: {total_owned:,}\n"
             stats_text += f"Overall Completion: {overall_completion:.1f}%\n"
