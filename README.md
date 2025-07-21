@@ -19,15 +19,59 @@ Questo progetto fornisce strumenti per:
 Lego_Bricklink/
 ├── LegoStatusBuildAnalysis.py          # Script principale per analisi e report
 ├── LegoStatusBuildAnalysis.ipynb       # Notebook Jupyter per analisi interattiva
+├── config.json                        # File di configurazione (NUOVO!)
+├── requirements.txt                   # Dipendenze Python (NUOVO!)
 ├── BL_color_mapping.json              # Mappatura completa codici colore BrickLink
 ├── BL_color_mapping_FULL.txt          # Mappatura colori in formato testo
 ├── color_mapping.json                 # Mappatura colori semplificata
 ├── bricklink_to_rebrickable_color_map.csv # Conversione colori BrickLink-Rebrickable
 ├── Analysis.xlsx                      # Analisi dati in formato Excel
+├── lego_analysis.log                  # File di log (generato automaticamente)
 └── README.md                          # Documentazione del progetto
 ```
 
+### File Generati
+Dopo l'esecuzione, troverai:
+```
+Output/
+├── my_lego_report.pdf                 # Report PDF con grafici e statistiche
+├── Filtered/
+│   ├── filtered_set1.xml             # File XML filtrati per set
+│   ├── filtered_set2.xml
+│   └── wanted_list.xml               # Lista desiderata combinata
+└── lego_analysis.log                 # Log dettagliati dell'esecuzione
+```
+
 ## 🚀 Funzionalità Principali
+
+### ✨ Nuove Funzionalità Implementate
+
+#### 📊 Dashboard Interattiva con Chart.js
+- **Grafici Real-time**: Visualizzazioni interattive per distribuzione colori, categorie e progressi
+- **Filtri Avanzati**: Ricerca e filtraggio real-time dei dati
+- **Confronto Collezioni**: Analisi comparativa tra multiple collezioni
+- **Timeline Progressi**: Tracciamento del completamento nel tempo
+- **Export Multi-formato**: Esportazione in PDF, Excel, CSV con un click
+
+#### 🔗 Integrazione BrickLink API
+- **Autenticazione OAuth 1.0a**: Connessione sicura all'account BrickLink
+- **Download Automatico**: Scaricamento inventari e wanted list
+- **Sincronizzazione Bidirezionale**: Upload/download dati automatico
+- **Monitoraggio Prezzi**: Tracking prezzi real-time per ottimizzazione acquisti
+- **Gestione Credenziali**: Sistema sicuro per memorizzazione token
+
+#### 📧 Sistema Notifiche Email
+- **Alert Automatici**: Notifiche per pezzi mancanti critici
+- **Variazioni Prezzi**: Alert per cambiamenti significativi prezzi
+- **Riepilogo Settimanale**: Summary automatico progressi collezioni
+- **Template HTML**: Email personalizzabili con design professionale
+- **Configurazione Flessibile**: Setup facile via interfaccia web
+
+#### 🗄️ Database Analytics Avanzato
+- **SQLite Integrato**: Storage persistente per analisi storiche
+- **Statistiche Dettagliate**: Metriche avanzate per ogni collezione
+- **Backup Automatico**: Protezione dati con snapshot periodici
+- **Query Ottimizzate**: Performance elevate anche con grandi dataset
 
 ### 1. Analisi e Report PDF
 - **Estrazione dati**: Analizza file XML degli inventari BrickLink
@@ -36,13 +80,20 @@ Lego_Bricklink/
 - **Report multi-pagina**: Salvataggio in un singolo file PDF strutturato
 - **Rilevamento anomalie**: Evidenzia codici colore mancanti nella mappatura
 
-### 2. Gestione XML Avanzata
+### 2. Generazione Wanted List XML ✨ **NUOVO!**
+- **Combinazione intelligente**: Unisce più inventari in un'unica wanted list
+- **Filtraggio automatico**: Include solo elementi con quantità mancanti (MINQTY > 0)
+- **Deduplicazione**: Combina elementi identici sommando le quantità richieste
+- **Formato BrickLink**: XML pronto per importazione diretta su BrickLink
+- **Interfaccia web**: Generazione con un click dall'interfaccia di analisi
+
+### 3. Gestione XML Avanzata
 - **Combinazione inventari**: Unisce più file XML in un unico inventario
 - **Filtro intelligente**: Esclude elementi con quantità minima = 0
 - **Deduplicazione**: Combina elementi identici sommando le quantità
 - **File ottimizzati**: Genera XML pronti per l'importazione su BrickLink
 
-### 3. Mappatura Colori
+### 4. Mappatura Colori
 - **Database completo**: Oltre 200 colori BrickLink mappati
 - **Conversione cross-platform**: Supporto per Rebrickable
 - **Formato multiplo**: JSON, CSV e TXT per diverse esigenze
@@ -59,56 +110,146 @@ Il sistema fornisce:
 
 ### Requisiti di Sistema
 - Python 3.6 o superiore
-- Librerie Python richieste:
-  ```bash
-  pip install matplotlib xml.etree.ElementTree collections json
-  ```
+- Librerie Python richieste (installate automaticamente)
 
-### Setup Rapido
-1. Clona il repository:
+### Setup Completo
+
+1. **Clona il repository**:
    ```bash
    git clone https://github.com/Gianpy99/Lego_Bricklink.git
    cd Lego_Bricklink
    ```
 
-2. Installa le dipendenze:
+2. **Installa le dipendenze**:
    ```bash
    pip install -r requirements.txt
    ```
 
-## 📖 Guida all'Uso
+3. **Prepara i tuoi dati**:
+   - Esporta gli inventari LEGO da BrickLink in formato XML
+   - Posiziona i file XML in una cartella dedicata
+   - Verifica che il file `BL_color_mapping.json` sia presente
 
-### Uso Base - Script Python
+4. **Configura il sistema**:
+   - Modifica il file `config.json` con i tuoi percorsi
+   - Oppure modifica direttamente le variabili nel codice Python
 
-```python
-# Configurazione percorsi
-inventory_folder = "path/to/your/xml/files"
-color_mapping_file = "BL_color_mapping.json"
-output_pdf = "lego_analysis_report.pdf"
-
-# Avvia l'analisi
+### Test Rapido
+Per verificare che tutto funzioni:
+```bash
 python LegoStatusBuildAnalysis.py
 ```
 
-### Uso Avanzato - Notebook Jupyter
+Se vedi il messaggio "No configuration file found", crea o modifica il file `config.json`.
 
-Per analisi interattive e personalizzazioni:
+## 📖 Guida all'Uso
+
+### 🚀 Metodo Raccomandato - Configurazione JSON
+
+1. **Personalizza il file di configurazione** `config.json`:
+   ```json
+   {
+     "reports": [
+       {
+         "name": "La mia collezione LEGO",
+         "folder_path": "C:\\path\\to\\your\\xml\\files",
+         "color_mapping_path": "BL_color_mapping.json",
+         "output_pdf": "my_lego_report.pdf"
+       }
+     ],
+     "combiners": [
+       {
+         "name": "Lista desiderata combinata",
+         "folder_path": "C:\\path\\to\\your\\xml\\files",
+         "filtered_folder": "C:\\path\\to\\output\\folder",
+         "output_file": "wanted_list.xml",
+         "excluded_files": ["set1.xml", "set2.xml"]
+       }
+     ]
+   }
+   ```
+
+2. **Esegui lo script**:
+   ```bash
+   python LegoStatusBuildAnalysis.py
+   ```
+
+### 🔧 Metodo Alternativo - Modifica Diretta
+
+Se preferisci non usare il file di configurazione, puoi modificare direttamente le variabili nel codice:
+
+```python
+# Nell'ultima parte del file LegoStatusBuildAnalysis.py
+reports = [
+    {
+        "folder_path": r'C:\path\to\your\xml\files',
+        "color_mapping_path": 'BL_color_mapping.json',
+        "output_pdf": 'my_lego_report.pdf'
+    }
+]
+```
+
+### 📓 Uso Interattivo - Notebook Jupyter
+
+Per analisi esplorative e personalizzazioni avanzate:
 ```bash
 jupyter notebook LegoStatusBuildAnalysis.ipynb
 ```
 
-### Configurazione Personalizzata
+### 🌐 Interfaccia Web ✨ **NUOVA!**
 
-Modifica i parametri nel script principale:
-```python
-# Personalizza cartelle e file
-INVENTORY_FOLDER = "path/to/inventories"
-COLOR_MAPPING = "BL_color_mapping.json"
-OUTPUT_PDF = "my_collection_report.pdf"
+Per un'esperienza utente semplice e intuitiva:
 
-# Esclusioni file XML
-EXCLUDED_FILES = ["file1.xml", "file2.xml"]
+1. **Avvia il server web**:
+   ```bash
+   python web_app.py
+   ```
+
+2. **Apri il browser** su `http://localhost:5000`
+
+3. **Carica i tuoi file XML**:
+   - Trascina i file nella zona di upload
+   - Oppure clicca per selezionare manualmente
+   - Supporta upload multipli simultanei
+
+4. **Analizza e genera report**:
+   - **Report PDF**: Analisi completa con grafici e statistiche
+   - **Wanted List XML**: File pronto per importazione su BrickLink
+   - **Visualizzazione real-time**: Statistiche aggiornate istantaneamente
+
+#### Funzionalità Web Interface
+- ✅ **Upload drag-and-drop** per file XML/CSV/JSON
+- ✅ **Analisi multi-formato** con rilevamento automatico
+- ✅ **Generazione report PDF** con un click
+- ✅ **Creazione wanted list XML** per BrickLink
+- ✅ **Statistiche real-time** (colori, elementi, completezza)
+- ✅ **Download immediato** di report e wanted list
+
+### ⚙️ Passaggi Dettagliati
+
+#### 1. Preparazione dei File
+- Esporta i tuoi inventari LEGO da BrickLink in formato XML
+- Posiziona i file XML in una cartella (es. `C:\MyLego\Inventories\`)
+- Assicurati che il file `BL_color_mapping.json` sia nella stessa cartella dello script
+
+#### 2. Configurazione
+- Modifica il file `config.json` con i tuoi percorsi
+- Specifica quali file XML escludere (opzionale)
+- Configura le cartelle di output
+
+#### 3. Esecuzione
+```bash
+# Naviga nella cartella del progetto
+cd C:\Development\Lego_Bricklink
+
+# Esegui il script
+python LegoStatusBuildAnalysis.py
 ```
+
+#### 4. Verifica Output
+- **Report PDF**: Generato nella cartella specificata
+- **File XML filtrati**: Creati nella cartella `Filtered`
+- **Log**: Controlla il file `lego_analysis.log` per eventuali errori
 
 ## 📈 Output e Report
 
@@ -155,26 +296,136 @@ Il sistema include mappature complete per:
 
 ## 📋 Roadmap
 
-- [ ] Interfaccia web per analisi
-- [ ] Supporto per più formati di input
-- [ ] Integrazione API BrickLink
-- [ ] Dashboard interattivo
-- [ ] Notifiche automatiche per parti mancanti
+- [x] **Supporto per più formati di input** ✅ *IMPLEMENTATO*
+  - XML (BrickLink), CSV (Rebrickable/BrickOwl), JSON
+  - Parser automatico con rilevamento formato
+  - Mappatura colonne flessibile per CSV
+
+- [x] **Interfaccia web per analisi** ✅ *IMPLEMENTATO*
+  - Dashboard web con Bootstrap
+  - Upload drag-and-drop
+  - Generazione report online
+  - Statistiche in tempo reale
+
+- [ ] **Integrazione API BrickLink** 🚧 *IN SVILUPPO*
+  - Autenticazione OAuth
+  - Download automatico inventari
+  - Sincronizzazione liste desiderate
+
+- [ ] **Dashboard interattivo** 📋 *PIANIFICATO*
+  - Grafici interattivi con Chart.js
+  - Filtri dinamici per collezione
+  - Confronto tra set
+
+- [ ] **Notifiche automatiche per parti mancanti** 📋 *PIANIFICATO*
+  - Sistema di alert email
+  - Monitoraggio prezzi
+  - Suggerimenti acquisti ottimizzati
+
+### 🆕 Nuove Funzionalità Disponibili
+
+#### **Multi-Format Parser**
+```python
+from input_handlers import MultiFormatInputParser
+
+parser = MultiFormatInputParser()
+results = parser.parse_folder("path/to/mixed/files")
+```
+
+#### **Web Interface**
+```bash
+# Avvia il server web
+python web_app.py
+
+# Apri http://localhost:5000 nel browser
+```
+
+#### **Formati Supportati**
+- **XML**: File inventario BrickLink standard
+- **CSV**: Rebrickable, BrickOwl, o formato personalizzato
+- **JSON**: Struttura flessibile per API esterne
 
 ## 🐛 Troubleshooting
 
 ### Problemi Comuni
-- **Errore mappatura colori**: Verifica che il file JSON sia presente e valido
-- **File XML non trovati**: Controlla i percorsi delle cartelle
-- **Errori grafici**: Assicurati che matplotlib sia installato correttamente
 
-### Log e Debug
-Il sistema genera log dettagliati per identificare problemi:
-```python
-# Abilita logging debug
-import logging
-logging.basicConfig(level=logging.DEBUG)
+#### 📁 **"No configuration file found"**
+**Soluzione**: Crea o modifica il file `config.json` nella cartella principale:
+```json
+{
+  "reports": [{
+    "name": "Test",
+    "folder_path": "C:\\path\\to\\xml\\files",
+    "color_mapping_path": "BL_color_mapping.json",
+    "output_pdf": "test_report.pdf"
+  }]
+}
 ```
+
+#### 🎨 **"Color code not found in color mapping"**
+**Soluzione**: 
+- Verifica che il file `BL_color_mapping.json` sia presente
+- Controlla che il file sia un JSON valido
+- Il sistema continuerà comunque a funzionare usando i codici numerici
+
+#### 📂 **"Folder not found" o "File not found"**
+**Soluzione**:
+- Usa percorsi assoluti (es. `C:\MyFolder\`)
+- Su Windows usa `\\` o `/` per i separatori
+- Verifica i permessi di lettura/scrittura
+
+#### 📊 **Errori nella generazione grafici**
+**Soluzione**:
+```bash
+pip install --upgrade matplotlib
+```
+
+#### 🔍 **File XML non processati**
+**Soluzione**:
+- Verifica che i file abbiano estensione `.xml`
+- Controlla che non siano nella lista `excluded_files`
+- Assicurati che contengano elementi con `MINQTY > 0`
+
+### 🔧 Debug Avanzato
+
+#### Abilita Logging Dettagliato
+Modifica il file `config.json`:
+```json
+{
+  "logging": {
+    "level": "DEBUG",
+    "file": "debug.log"
+  }
+}
+```
+
+#### Controlla i Log
+```bash
+# Visualizza gli ultimi log
+tail -f lego_analysis.log
+
+# Su Windows
+type lego_analysis.log
+```
+
+#### Test Singolo File
+Per testare un singolo file XML:
+```python
+from LegoStatusBuildAnalysis import LegoColorReport
+
+report = LegoColorReport(
+    folder_path="path/to/single/file/folder",
+    color_mapping_path="BL_color_mapping.json", 
+    output_pdf="test.pdf"
+)
+report.process()
+```
+
+### 💡 Suggerimenti
+- **Backup**: Fai sempre un backup dei tuoi file XML originali
+- **Nomi file**: Evita caratteri speciali nei nomi dei file XML
+- **Dimensioni**: Per collezioni molto grandi, il processo può richiedere alcuni minuti
+- **Memoria**: File XML molto grandi potrebbero richiedere più RAM
 
 ## 📞 Supporto
 

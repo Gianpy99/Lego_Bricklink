@@ -322,11 +322,15 @@ class LegoXmlCombiner:
         self.xml_files = self._get_xml_files()
         self.combined_root = ET.Element("INVENTORY")
         self.item_tracker = {}
+        self.item_sources = {}  # Track which files each item comes from
         self.stats = {
             'total_items_processed': 0,
             'items_combined': 0,
             'files_processed': 0,
-            'errors': []
+            'unique_items_in_wanted_list': 0,
+            'total_pieces_needed': 0,
+            'errors': [],
+            'source_files': []
         }
 
     def _validate_folder_path(self, folder_path):
@@ -375,6 +379,9 @@ class LegoXmlCombiner:
         items_processed = 0
         items_added = 0
         
+        # Add file to source files list
+        self.stats['source_files'].append(xml_file)
+        
         try:
             logging.info(f"Processing file: {xml_file}")
             tree = ET.parse(file_path)
@@ -409,16 +416,32 @@ class LegoXmlCombiner:
                     color = color if color else ""
                     item_key = (item_type, color)
                     
+                    # Extract set name from filename
+                    set_name = self.extract_set_name(xml_file)
+                    
                     # Combined file logic
                     if item_key in self.item_tracker:
                         existing_item = self.item_tracker[item_key]
                         existing_min_qty = int(existing_item.find('MINQTY').text)
                         existing_item.find('MINQTY').text = str(existing_min_qty + min_qty)
+                        
+                        # Update sources list
+                        if item_key not in self.item_sources:
+                            self.item_sources[item_key] = []
+                        if set_name not in self.item_sources[item_key]:
+                            self.item_sources[item_key].append(set_name)
+                        
+                        # Update remarks with all source sets
+                        self.update_item_remarks(existing_item, self.item_sources[item_key])
+                        
                         self.stats['items_combined'] += 1
                     else:
-                        new_combined_item = self.copy_item(item, xml_file)
+                        new_combined_item = self.copy_item(item, set_name)
                         self.combined_root.append(new_combined_item)
                         self.item_tracker[item_key] = new_combined_item
+                        
+                        # Initialize sources list
+                        self.item_sources[item_key] = [set_name]
                     
                     # Filtered file logic
                     new_filtered_item = self.copy_item(item)
@@ -449,10 +472,22 @@ class LegoXmlCombiner:
     def write_combined_xml(self):
         """Write combined XML file with error handling"""
         try:
+            # Calculate statistics before writing
+            self.stats['unique_items_in_wanted_list'] = len(self.item_tracker)
+            
+            # Calculate total pieces needed
+            total_pieces = 0
+            for item in self.item_tracker.values():
+                min_qty_elem = item.find('MINQTY')
+                if min_qty_elem is not None:
+                    total_pieces += int(min_qty_elem.text)
+            self.stats['total_pieces_needed'] = total_pieces
+            
             combined_tree = ET.ElementTree(self.combined_root)
             combined_tree.write(self.output_file, encoding='utf-8', xml_declaration=True)
             logging.info("Combined wanted list XML file created: %s", self.output_file)
             logging.info(f"Combined file contains {len(self.item_tracker)} unique items")
+            logging.info(f"Total pieces needed: {total_pieces}")
         except Exception as e:
             error_msg = f"Error writing combined XML file: {e}"
             logging.error(error_msg)
@@ -487,8 +522,37 @@ class LegoXmlCombiner:
                 new_sub_element.text = sub_element.text
         if remarks:
             remarks_element = ET.SubElement(new_item, 'REMARKS')
-            remarks_element.text = remarks
+            remarks_element.text = f"Missing from: {remarks}"
         return new_item
+
+    def extract_set_name(self, filename):
+        """Extract clean set name from filename"""
+        # Remove .xml extension
+        name = filename.replace('.xml', '')
+        
+        # Handle different filename formats
+        # Format: "21034 - London.xml" or "79002 - Attack of the Wargs.xml"
+        if ' - ' in name:
+            parts = name.split(' - ', 1)
+            set_number = parts[0].strip()
+            set_name = parts[1].strip()
+            return f"Set {set_number} ({set_name})"
+        else:
+            # Fallback for other formats
+            return f"Set {name}"
+
+    def update_item_remarks(self, item, source_sets):
+        """Update item remarks with all source sets"""
+        remarks_elem = item.find('REMARKS')
+        if remarks_elem is None:
+            remarks_elem = ET.SubElement(item, 'REMARKS')
+        
+        # Create professional comment
+        if len(source_sets) == 1:
+            remarks_elem.text = f"Missing from: {source_sets[0]}"
+        else:
+            sets_list = ", ".join(source_sets[:-1]) + f" and {source_sets[-1]}"
+            remarks_elem.text = f"Missing from: {sets_list}"
 
     @staticmethod
     def get_xml_text(item, tag):

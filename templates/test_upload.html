@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Upload - LEGO Debug</title>
+    <script>
+    // Monitor server connection status
+    let serverStatus = document.createElement('div');
+    serverStatus.id = 'server-status';
+    serverStatus.style.position = 'fixed';
+    serverStatus.style.top = '10px';
+    serverStatus.style.right = '10px';
+    serverStatus.style.padding = '10px';
+    serverStatus.style.backgroundColor = '#28a745';
+    serverStatus.style.color = 'white';
+    serverStatus.style.borderRadius = '5px';
+    serverStatus.style.fontWeight = 'bold';
+    serverStatus.textContent = '🟢 Server Connesso';
+    
+    window.addEventListener('load', function() {
+        document.body.appendChild(serverStatus);
+        
+        // Monitor for server disconnections
+        window.addEventListener('beforeunload', function() {
+            serverStatus.style.backgroundColor = '#ffc107';
+            serverStatus.textContent = '🟡 Caricamento...';
+        });
+        
+        // Check if page reloaded unexpectedly
+        if(sessionStorage.getItem('uploadInProgress')) {
+            serverStatus.style.backgroundColor = '#dc3545';
+            serverStatus.textContent = '🔴 Server Riavviato!';
+            console.log('❌ BUG RILEVATO: Server si è riavviato durante upload');
+            sessionStorage.removeItem('uploadInProgress');
+        }
+    });
+    
+    function trackUpload() {
+        sessionStorage.setItem('uploadInProgress', 'true');
+        serverStatus.style.backgroundColor = '#007bff';
+        serverStatus.textContent = '🔵 Upload in corso...';
+    }
+    </script>
+</head>
+<body>
+    <h1>🧱 Test Upload LEGO - Debug Server Restart</h1>
+    
+    <div style="margin: 20px; padding: 20px; border: 1px solid #ddd;">
+        <h3>Test Upload File XML</h3>
+        <form action="/upload" method="POST" enctype="multipart/form-data" onsubmit="trackUpload()">
+            <input type="file" name="files[]" accept=".xml,.csv,.json" multiple>
+            <br><br>
+            <button type="submit" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px;">
+                📤 Carica File di Test
+            </button>
+        </form>
+    </div>
+    
+    <div style="margin: 20px; padding: 20px; background: #f8f9fa;">
+        <h3>🔍 Come Testare il Bug:</h3>
+        <ol>
+            <li>Seleziona il file <code>test_upload.xml</code> creato nella cartella del progetto</li>
+            <li>Clicca "Carica File di Test"</li>
+            <li>Osserva l'indicatore di stato in alto a destra</li>
+            <li><strong>Se diventa rosso "Server Riavviato"</strong> → Il bug è ancora presente</li>
+            <li><strong>Se rimane verde/blu</strong> → Il bug è risolto! ✅</li>
+        </ol>
+    </div>
+    
+    <div style="margin: 20px; padding: 20px; background: #e9ecef;">
+        <h3>📊 Timestamp Corrente:</h3>
+        <p id="timestamp"></p>
+        <script>
+            setInterval(function() {
+                document.getElementById('timestamp').textContent = new Date().toLocaleString();
+            }, 1000);
+        </script>
+    </div>
+</body>
+</html>

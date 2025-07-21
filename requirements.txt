@@ -1,2 +1,34 @@
-matplotlib>=3.5.0
-pathlib>=1.0.0
+# Core Python packages for LEGO analysis - Compatible versions
+matplotlib>=3.3.0,<4.0.0
+pandas>=1.3.0,<2.0.0
+requests>=2.25.0,<3.0.0
+
+# Web interface - Stable versions
+Flask>=2.0.0,<3.0.0
+werkzeug>=2.0.0,<3.0.0
+Jinja2>=3.0.0,<4.0.0
+MarkupSafe>=2.0.0,<3.0.0
+
+# Multi-format support
+openpyxl>=3.0.0,<4.0.0
+
+# BrickLink API integration
+requests-oauthlib>=1.3.0,<2.0.0
+
+# Email notifications
+schedule>=1.1.0,<2.0.0
+
+# Development and testing (optional)
+# pytest>=6.0.0,<8.0.0
+# pytest-cov>=2.0.0,<4.0.0
+
+# Optional: For advanced features (install manually if needed)
+# Pillow>=8.0.0,<10.0.0  # Image processing
+# reportlab>=3.5.0,<4.0.0  # Advanced PDF generation
+# numpy>=1.19.0,<2.0.0
+# scipy>=1.6.0,<2.0.0
+# seaborn>=0.11.0,<1.0.0  # Enhanced plotting
+
+# Note: Some packages excluded due to compatibility issues
+# If you need advanced features, install manually:
+# pip install Pillow reportlab numpy scipy seaborn

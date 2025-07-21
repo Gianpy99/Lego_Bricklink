@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ data.collection.name }} - Dashboard Collezione</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        :root {
+            --lego-red: #d50000;
+            --lego-yellow: #ffeb3b;
+            --lego-blue: #0d47a1;
+            --lego-green: #388e3c;
+            --lego-orange: #ff9800;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .collection-header {
+            background: linear-gradient(135deg, var(--lego-blue) 0%, #1976d2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .progress-circle {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            margin: 0 auto;
+        }
+        
+        .progress-circle svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+        
+        .progress-circle circle {
+            fill: transparent;
+            stroke-width: 12;
+            stroke-linecap: round;
+        }
+        
+        .progress-circle .background {
+            stroke: #e9ecef;
+        }
+        
+        .progress-circle .progress {
+            stroke: var(--lego-green);
+            stroke-dasharray: 408.4;
+            stroke-dashoffset: 408.4;
+            transition: stroke-dashoffset 1.5s ease-in-out;
+        }
+        
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .filter-tabs {
+            background: white;
+            border-radius: 15px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .filter-btn {
+            border: none;
+            background: transparent;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            margin: 0 0.25rem;
+            transition: all 0.3s ease;
+        }
+        
+        .filter-btn.active {
+            background: var(--lego-red);
+            color: white;
+        }
+        
+        .missing-item {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 8px;
+        }
+        
+        .color-chip {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .interactive-element {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .interactive-element:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .timeline-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        #progressTimeline {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 0.5rem 0;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 0.75rem;
+        }
+        
+        .data-table {
+            font-size: 0.9rem;
+        }
+        
+        .data-table th {
+            background: #f8f9fa;
+            border-top: none;
+            font-weight: 600;
+        }
+        
+        .export-buttons {
+            gap: 0.5rem;
+        }
+        
+        .btn-export {
+            background: var(--lego-orange);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        .btn-export:hover {
+            background: #f57c00;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="collection-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <nav aria-label="breadcrumb" class="mb-2">
+                        <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item">
+                                <a href="/dashboard" class="text-white-50 text-decoration-none">
+                                    <i class="fas fa-home me-1"></i>Dashboard
+                                </a>
+                            </li>
+                            <li class="breadcrumb-item active text-white">{{ data.collection.name }}</li>
+                        </ol>
+                    </nav>
+                    <h1 class="mb-2">
+                        <i class="fas fa-cube me-3"></i>
+                        {{ data.collection.name }}
+                    </h1>
+                    <p class="mb-0 opacity-75">
+                        Creata il {{ data.collection.created_at[:10] }} • 
+                        {{ data.collection.file_count }} file • 
+                        {{ data.collection.total_items }} elementi
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="export-buttons d-flex justify-content-end">
+                        <button class="btn btn-export" onclick="exportData('pdf')">
+                            <i class="fas fa-file-pdf me-2"></i>PDF
+                        </button>
+                        <button class="btn btn-export" onclick="exportData('excel')">
+                            <i class="fas fa-file-excel me-2"></i>Excel
+                        </button>
+                        <button class="btn btn-export" onclick="exportData('csv')">
+                            <i class="fas fa-file-csv me-2"></i>CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Key Metrics -->
+        <div class="row mb-4">
+            <div class="col-lg-3">
+                <div class="stat-card text-center">
+                    <div class="progress-circle" data-progress="{{ data.collection.completion_percentage }}">
+                        <svg>
+                            <circle class="background" cx="70" cy="70" r="65"></circle>
+                            <circle class="progress" cx="70" cy="70" r="65"></circle>
+                        </svg>
+                        <div class="progress-text">
+                            <h2 class="mb-0 text-primary">{{ "%.0f"|format(data.collection.completion_percentage) }}%</h2>
+                            <small class="text-muted">Completamento</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-9">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h4 class="mb-0 text-primary">{{ data.collection.total_items }}</h4>
+                                    <small class="text-muted">Elementi Totali</small>
+                                </div>
+                                <i class="fas fa-cubes fa-2x text-primary opacity-25"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h4 class="mb-0 text-success">{{ data.color_stats|length }}</h4>
+                                    <small class="text-muted">Colori Diversi</small>
+                                </div>
+                                <i class="fas fa-palette fa-2x text-success opacity-25"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h4 class="mb-0 text-warning">{{ data.missing_items|length }}</h4>
+                                    <small class="text-muted">Pezzi Mancanti</small>
+                                </div>
+                                <i class="fas fa-exclamation-triangle fa-2x text-warning opacity-25"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <h4 class="mb-0 text-info">{{ data.collection.file_count }}</h4>
+                                    <small class="text-muted">File Analizzati</small>
+                                </div>
+                                <i class="fas fa-files-o fa-2x text-info opacity-25"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Filters -->
+        <div class="filter-tabs">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="mb-2">Filtri Interattivi</h6>
+                    <div class="btn-group" role="group">
+                        <button class="filter-btn active" data-filter="all" onclick="filterData('all')">
+                            Tutti
+                        </button>
+                        <button class="filter-btn" data-filter="missing" onclick="filterData('missing')">
+                            Mancanti
+                        </button>
+                        <button class="filter-btn" data-filter="complete" onclick="filterData('complete')">
+                            Completi
+                        </button>
+                        <button class="filter-btn" data-filter="colors" onclick="filterData('colors')">
+                            Per Colore
+                        </button>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <label class="form-label mb-0">Ricerca:</label>
+                    <input type="text" class="form-control form-control-sm" id="searchInput" 
+                           placeholder="ID pezzo o colore..." style="width: 200px;">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">
+                        <i class="fas fa-undo me-1"></i>Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row">
+            <!-- Color Distribution -->
+            <div class="col-lg-6">
+                <div class="chart-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Distribuzione Colori</h6>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary active" onclick="switchChart('colors', 'pie')">
+                                <i class="fas fa-chart-pie"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="switchChart('colors', 'bar')">
+                                <i class="fas fa-chart-bar"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <canvas id="colorChart" height="250"></canvas>
+                </div>
+            </div>
+
+            <!-- Category Distribution -->
+            <div class="col-lg-6">
+                <div class="chart-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Categorie Elementi</h6>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleChartAnimation('category')">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </div>
+                    <canvas id="categoryChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Timeline -->
+        <div class="row">
+            <div class="col-12">
+                <div class="chart-card">
+                    <h6 class="mb-3">Andamento Completamento</h6>
+                    <div class="timeline-container">
+                        <canvas id="progressTimeline"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Data Tables -->
+        <div class="row">
+            <!-- Missing Items -->
+            <div class="col-lg-6">
+                <div class="chart-card">
+                    <h6 class="mb-3">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Pezzi Mancanti Prioritari
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID Pezzo</th>
+                                    <th>Colore</th>
+                                    <th>Quantità</th>
+                                    <th>File</th>
+                                    <th>Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody id="missingItemsTable">
+                                {% for item in data.missing_items[:10] %}
+                                <tr class="interactive-element" onclick="showItemDetails('{{ item[0] }}')">
+                                    <td class="fw-bold">{{ item[0] }}</td>
+                                    <td>
+                                        <span class="color-chip" style="background-color: {{ item[1] }}"></span>
+                                        {{ item[1] }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-warning">{{ item[2] }}</span>
+                                    </td>
+                                    <td class="text-muted">{{ item[3] }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="addToWishlist('{{ item[0] }}')">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Color Statistics -->
+            <div class="col-lg-6">
+                <div class="chart-card">
+                    <h6 class="mb-3">
+                        <i class="fas fa-palette text-info me-2"></i>
+                        Statistiche Colori
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table data-table">
+                            <thead>
+                                <tr>
+                                    <th>Colore</th>
+                                    <th>Pezzi Totali</th>
+                                    <th>Posseduti</th>
+                                    <th>Completamento</th>
+                                </tr>
+                            </thead>
+                            <tbody id="colorStatsTable">
+                                {% for color in data.color_stats[:10] %}
+                                <tr class="interactive-element" onclick="filterByColor('{{ color[0] }}')">
+                                    <td>
+                                        <span class="color-chip" style="background-color: {{ color[0] }}"></span>
+                                        {{ color[0] }}
+                                    </td>
+                                    <td>{{ color[1] }}</td>
+                                    <td>{{ color[2] }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-success" style="width: {{ color[4] }}%"></div>
+                                        </div>
+                                        <small class="text-muted">{{ "%.1f"|format(color[4]) }}%</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Details Modal -->
+    <div class="modal fade" id="itemDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dettagli Pezzo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="itemDetailsContent">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+                    <button type="button" class="btn btn-primary" onclick="openBrickLink()">
+                        Apri su BrickLink
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let charts = {};
+        let originalData = {};
+        let filteredData = {};
+        let currentFilter = 'all';
+        
+        // Collection data from server
+        const collectionData = {
+            collection: {{ data.collection|tojson }},
+            colorStats: {{ data.color_stats|tojson }},
+            categoryStats: {{ data.category_stats|tojson }},
+            missingItems: {{ data.missing_items|tojson }},
+            progressTimeline: {{ data.progress_timeline|tojson }}
+        };
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeProgressCircle();
+            createColorChart();
+            createCategoryChart();
+            createProgressTimeline();
+            setupSearchFilter();
+            loadOriginalData();
+        });
+        
+        function initializeProgressCircle() {
+            const progressElement = document.querySelector('.progress-circle');
+            const progress = parseFloat(progressElement.dataset.progress);
+            const circle = progressElement.querySelector('.progress');
+            const circumference = 2 * Math.PI * 65;
+            const offset = circumference - (progress / 100 * circumference);
+            
+            // Animate progress circle
+            setTimeout(() => {
+                circle.style.strokeDashoffset = offset;
+            }, 500);
+        }
+        
+        function createColorChart() {
+            const ctx = document.getElementById('colorChart').getContext('2d');
+            
+            const colorData = collectionData.colorStats.slice(0, 8).map(color => ({
+                label: color[0],
+                value: color[1],
+                completion: color[4]
+            }));
+            
+            charts.colors = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: colorData.map(c => c.label),
+                    datasets: [{
+                        data: colorData.map(c => c.value),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                            '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const color = colorData[context.dataIndex];
+                                    return `${color.label}: ${color.value} pezzi (${color.completion.toFixed(1)}% completo)`;
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const colorId = colorData[index].label;
+                            filterByColor(colorId);
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createCategoryChart() {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            const categoryData = collectionData.categoryStats.map(cat => ({
+                label: cat[0] || 'Non specificato',
+                count: cat[1],
+                pieces: cat[2]
+            }));
+            
+            charts.category = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categoryData.map(c => c.label),
+                    datasets: [{
+                        data: categoryData.map(c => c.pieces),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                            '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+                        ],
+                        borderWidth: 3,
+                        borderColor: '#fff',
+                        hoverBorderWidth: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const category = categoryData[context.dataIndex];
+                                    return `${category.label}: ${category.count} elementi (${category.pieces} pezzi)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateScale: true,
+                        animateRotate: true
+                    }
+                }
+            });
+        }
+        
+        function createProgressTimeline() {
+            const ctx = document.getElementById('progressTimeline').getContext('2d');
+            
+            const timelineData = collectionData.progressTimeline;
+            
+            charts.timeline = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: timelineData.map(d => d.date),
+                    datasets: [{
+                        label: 'Completamento %',
+                        data: timelineData.map(d => d.completion_rate),
+                        borderColor: 'rgb(13, 71, 161)',
+                        backgroundColor: 'rgba(13, 71, 161, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: 'rgb(13, 71, 161)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: 'rgb(13, 71, 161)',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'MMM dd'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function filterData(filterType) {
+            // Update active filter button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-filter="${filterType}"]`).classList.add('active');
+            
+            currentFilter = filterType;
+            
+            // Apply filter logic here
+            switch(filterType) {
+                case 'missing':
+                    filterMissingItems();
+                    break;
+                case 'complete':
+                    filterCompleteItems();
+                    break;
+                case 'colors':
+                    showColorFilter();
+                    break;
+                default:
+                    showAllItems();
+            }
+        }
+        
+        function filterMissingItems() {
+            // Highlight missing items in tables
+            const rows = document.querySelectorAll('#missingItemsTable tr');
+            rows.forEach(row => {
+                row.style.backgroundColor = '#fff3cd';
+            });
+            
+            // Update charts to show only missing data
+            updateChartsForFilter('missing');
+        }
+        
+        function filterCompleteItems() {
+            // Show only complete items
+            updateChartsForFilter('complete');
+        }
+        
+        function showColorFilter() {
+            // Show color-based view
+            updateChartsForFilter('colors');
+        }
+        
+        function showAllItems() {
+            // Reset all filters
+            resetTableHighlights();
+            updateChartsForFilter('all');
+        }
+        
+        function updateChartsForFilter(filterType) {
+            // This would update chart data based on filter
+            // Implementation depends on the specific filter logic
+            console.log(`Updating charts for filter: ${filterType}`);
+        }
+        
+        function resetTableHighlights() {
+            document.querySelectorAll('.data-table tr').forEach(row => {
+                row.style.backgroundColor = '';
+            });
+        }
+        
+        function setupSearchFilter() {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                filterTablesBySearch(searchTerm);
+            });
+        }
+        
+        function filterTablesBySearch(searchTerm) {
+            const tables = ['#missingItemsTable', '#colorStatsTable'];
+            
+            tables.forEach(tableSelector => {
+                const rows = document.querySelectorAll(`${tableSelector} tr`);
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    if (text.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        function switchChart(chartName, type) {
+            if (charts[chartName]) {
+                charts[chartName].destroy();
+            }
+            
+            if (chartName === 'colors') {
+                if (type === 'bar') {
+                    createColorBarChart();
+                } else {
+                    createColorChart();
+                }
+            }
+            
+            // Update button states
+            const buttonGroup = event.target.closest('.btn-group');
+            buttonGroup.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            event.target.closest('.btn').classList.add('active');
+        }
+        
+        function createColorBarChart() {
+            const ctx = document.getElementById('colorChart').getContext('2d');
+            
+            const colorData = collectionData.colorStats.slice(0, 8);
+            
+            charts.colors = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: colorData.map(c => c[0]),
+                    datasets: [{
+                        label: 'Pezzi Totali',
+                        data: colorData.map(c => c[1]),
+                        backgroundColor: 'rgba(13, 71, 161, 0.8)',
+                        borderColor: 'rgb(13, 71, 161)',
+                        borderWidth: 1
+                    }, {
+                        label: 'Posseduti',
+                        data: colorData.map(c => c[2]),
+                        backgroundColor: 'rgba(56, 142, 60, 0.8)',
+                        borderColor: 'rgb(56, 142, 60)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function toggleChartAnimation(chartName) {
+            if (charts[chartName]) {
+                charts[chartName].update('show');
+            }
+        }
+        
+        function filterByColor(colorId) {
+            // Filter data by specific color
+            console.log(`Filtering by color: ${colorId}`);
+            
+            // Update UI to show color-specific data
+            document.getElementById('searchInput').value = colorId;
+            filterTablesBySearch(colorId);
+        }
+        
+        function showItemDetails(itemId) {
+            // Show detailed information about a specific item
+            const modalContent = document.getElementById('itemDetailsContent');
+            
+            modalContent.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Informazioni Pezzo</h6>
+                        <p><strong>ID:</strong> ${itemId}</p>
+                        <p><strong>Tipo:</strong> Parte</p>
+                        <p><strong>Categoria:</strong> Non specificato</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Disponibilità</h6>
+                        <p><strong>Richiesti:</strong> <span class="badge bg-warning">5</span></p>
+                        <p><strong>Posseduti:</strong> <span class="badge bg-success">0</span></p>
+                        <p><strong>Mancanti:</strong> <span class="badge bg-danger">5</span></p>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <img src="https://via.placeholder.com/200x150?text=Pezzo+${itemId}" 
+                         class="img-fluid rounded" alt="Immagine pezzo">
+                </div>
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('itemDetailsModal'));
+            modal.show();
+        }
+        
+        function addToWishlist(itemId) {
+            // Add item to wishlist
+            console.log(`Adding ${itemId} to wishlist`);
+            
+            // Show success message
+            const toast = document.createElement('div');
+            toast.className = 'toast position-fixed top-0 end-0 m-3';
+            toast.innerHTML = `
+                <div class="toast-body bg-success text-white">
+                    <i class="fas fa-check me-2"></i>
+                    Pezzo ${itemId} aggiunto alla wishlist
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+            
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 3000);
+        }
+        
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            filterData('all');
+            resetTableHighlights();
+        }
+        
+        function loadOriginalData() {
+            originalData = {
+                colors: collectionData.colorStats,
+                categories: collectionData.categoryStats,
+                missing: collectionData.missingItems
+            };
+        }
+        
+        function exportData(format) {
+            console.log(`Exporting data in ${format} format`);
+            
+            // This would trigger the appropriate export
+            switch(format) {
+                case 'pdf':
+                    window.open(`/api/export/pdf/${collectionData.collection.id}`, '_blank');
+                    break;
+                case 'excel':
+                    window.open(`/api/export/excel/${collectionData.collection.id}`, '_blank');
+                    break;
+                case 'csv':
+                    window.open(`/api/export/csv/${collectionData.collection.id}`, '_blank');
+                    break;
+            }
+        }
+        
+        function openBrickLink() {
+            // Open current item on BrickLink
+            window.open('https://www.bricklink.com/', '_blank');
+        }
+    </script>
+</body>
+</html>

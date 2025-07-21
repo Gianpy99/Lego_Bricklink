@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEGO Dashboard - Panoramica Collezioni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.0/index.min.js"></script>
+    <style>
+        :root {
+            --lego-red: #d50000;
+            --lego-yellow: #ffeb3b;
+            --lego-blue: #0d47a1;
+            --lego-green: #388e3c;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--lego-red) 0%, #ff5722 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .collection-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+        
+        .collection-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+        }
+        
+        .progress-ring {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+        
+        .progress-ring svg {
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring circle {
+            fill: transparent;
+            stroke-width: 8;
+            stroke-linecap: round;
+        }
+        
+        .progress-ring .background {
+            stroke: #e9ecef;
+        }
+        
+        .progress-ring .progress {
+            stroke: var(--lego-green);
+            stroke-dasharray: 314.16;
+            stroke-dashoffset: 314.16;
+            transition: stroke-dashoffset 0.5s ease;
+        }
+        
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+        
+        .icon-files { background: var(--lego-blue); }
+        .icon-items { background: var(--lego-yellow); color: #333; }
+        .icon-progress { background: var(--lego-green); }
+        
+        .quick-actions {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .btn-lego {
+            background: var(--lego-red);
+            border: none;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-lego:hover {
+            background: #b71c1c;
+            transform: translateY(-2px);
+            color: white;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .sync-status {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .sync-success { background: #d4edda; color: #155724; }
+        .sync-warning { background: #fff3cd; color: #856404; }
+        .sync-error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-2">
+                        <i class="fas fa-cubes me-3"></i>
+                        LEGO Collection Dashboard
+                    </h1>
+                    <p class="mb-0 opacity-75">Gestisci e analizza le tue collezioni LEGO</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="d-flex gap-2 justify-content-end">
+                        <button class="btn btn-outline-light" id="syncBtn">
+                            <i class="fas fa-sync-alt me-2"></i>
+                            Sincronizza BrickLink
+                        </button>
+                        <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                            <i class="fas fa-plus me-2"></i>
+                            Nuova Analisi
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Quick Stats Overview -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="quick-actions">
+                    <h6 class="text-muted mb-3">Statistiche Generali</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="stat-icon icon-files me-3">
+                            <i class="fas fa-folder-open"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0" id="totalCollections">{{ collections|length }}</h4>
+                            <small class="text-muted">Collezioni</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="stat-icon icon-items me-3">
+                            <i class="fas fa-cubes"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0" id="totalItems">-</h4>
+                            <small class="text-muted">Elementi Totali</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon icon-progress me-3">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0" id="avgCompletion">-</h4>
+                            <small class="text-muted">Completamento Medio</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-9">
+                <div class="chart-container">
+                    <h6 class="mb-3">Andamento Collezioni nel Tempo</h6>
+                    <canvas id="collectionsTimelineChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Collections Grid -->
+        <div class="row" id="collectionsGrid">
+            {% for collection in collections %}
+            <div class="col-lg-6 col-xl-4">
+                <div class="collection-card" data-collection-id="{{ collection.id }}">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h5 class="card-title mb-1">{{ collection.name }}</h5>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    {{ collection.created_at[:10] }}
+                                </small>
+                            </div>
+                            <div class="progress-ring" data-progress="{{ collection.completion_percentage }}">
+                                <svg width="60" height="60">
+                                    <circle class="background" cx="30" cy="30" r="25"></circle>
+                                    <circle class="progress" cx="30" cy="30" r="25"></circle>
+                                </svg>
+                                <div class="position-absolute top-50 start-50 translate-middle text-center">
+                                    <small class="fw-bold">{{ "%.0f"|format(collection.completion_percentage) }}%</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <div class="text-primary">
+                                    <i class="fas fa-files-o mb-1"></i>
+                                    <div class="fw-bold">{{ collection.file_count }}</div>
+                                    <small class="text-muted">File</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-success">
+                                    <i class="fas fa-cubes mb-1"></i>
+                                    <div class="fw-bold">{{ collection.total_items }}</div>
+                                    <small class="text-muted">Elementi</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-warning">
+                                    <i class="fas fa-percentage mb-1"></i>
+                                    <div class="fw-bold">{{ "%.1f"|format(collection.completion_percentage) }}%</div>
+                                    <small class="text-muted">Completo</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <a href="/dashboard/collection/{{ collection.id }}" class="btn btn-lego flex-fill">
+                                <i class="fas fa-chart-bar me-2"></i>Analizza
+                            </a>
+                            <button class="btn btn-outline-secondary" onclick="compareCollection({{ collection.id }})">
+                                <i class="fas fa-balance-scale"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <i class="fas fa-cubes text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3 text-muted">Nessuna Collezione Trovata</h4>
+                    <p class="text-muted">Inizia caricando i tuoi file di inventario LEGO</p>
+                    <button class="btn btn-lego" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                        <i class="fas fa-plus me-2"></i>Crea Prima Collezione
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Comparison Modal -->
+        <div class="modal fade" id="comparisonModal" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confronto Collezioni</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <canvas id="comparisonChart"></canvas>
+                            </div>
+                            <div class="col-md-6">
+                                <div id="comparisonDetails"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Modal -->
+        <div class="modal fade" id="uploadModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Nuova Analisi Collezione</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="uploadForm">
+                            <div class="mb-3">
+                                <label for="collectionName" class="form-label">Nome Collezione</label>
+                                <input type="text" class="form-control" id="collectionName" 
+                                       placeholder="Es. Set Castle 2023" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="files" class="form-label">File di Inventario</label>
+                                <input type="file" class="form-control" id="files" 
+                                       multiple accept=".xml,.csv,.json" required>
+                                <div class="form-text">
+                                    Supportati: XML (BrickLink), CSV (Rebrickable), JSON
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="button" class="btn btn-lego" onclick="uploadAndAnalyze()">
+                            <i class="fas fa-upload me-2"></i>Carica e Analizza
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Status Toast -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="syncToast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-sync-alt me-2"></i>
+                <strong class="me-auto">Sincronizzazione BrickLink</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="syncToastBody">
+                <!-- Status message -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-spinner" id="loadingOverlay">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Caricamento...</span>
+        </div>
+        <p class="mt-3">Elaborazione in corso...</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let selectedCollections = [];
+        let collectionsData = {{ collections|tojson }};
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeProgressRings();
+            updateOverallStats();
+            createTimelineChart();
+        });
+        
+        function initializeProgressRings() {
+            document.querySelectorAll('.progress-ring').forEach(ring => {
+                const progress = parseFloat(ring.dataset.progress);
+                const circle = ring.querySelector('.progress');
+                const circumference = 2 * Math.PI * 25; // radius = 25
+                const offset = circumference - (progress / 100 * circumference);
+                
+                circle.style.strokeDashoffset = offset;
+                
+                // Animate on load
+                setTimeout(() => {
+                    circle.style.transition = 'stroke-dashoffset 1s ease';
+                }, 100);
+            });
+        }
+        
+        function updateOverallStats() {
+            const totalItems = collectionsData.reduce((sum, c) => sum + (c.total_items || 0), 0);
+            const avgCompletion = collectionsData.length > 0 ? 
+                collectionsData.reduce((sum, c) => sum + (c.completion_percentage || 0), 0) / collectionsData.length : 0;
+            
+            document.getElementById('totalItems').textContent = totalItems.toLocaleString();
+            document.getElementById('avgCompletion').textContent = avgCompletion.toFixed(1) + '%';
+        }
+        
+        function createTimelineChart() {
+            const ctx = document.getElementById('collectionsTimelineChart').getContext('2d');
+            
+            // Mock timeline data - in production, fetch from API
+            const timelineData = {
+                labels: ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu'],
+                datasets: [{
+                    label: 'Nuove Collezioni',
+                    data: [2, 1, 3, 2, 4, 1],
+                    borderColor: 'rgb(213, 0, 0)',
+                    backgroundColor: 'rgba(213, 0, 0, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            };
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: timelineData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        async function syncBrickLink() {
+            const btn = document.getElementById('syncBtn');
+            const icon = btn.querySelector('i');
+            const originalText = btn.innerHTML;
+            
+            // Show loading state
+            btn.disabled = true;
+            icon.className = 'fas fa-spinner fa-spin me-2';
+            
+            try {
+                const response = await fetch('/api/bricklink/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ type: 'download_inventories' })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSyncToast('success', result.message);
+                    // Refresh page after successful sync
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    showSyncToast('error', result.error || 'Errore durante la sincronizzazione');
+                }
+                
+            } catch (error) {
+                console.error('Sync error:', error);
+                showSyncToast('error', 'Errore di connessione durante la sincronizzazione');
+            } finally {
+                // Restore button state
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        function showSyncToast(type, message) {
+            const toast = document.getElementById('syncToast');
+            const toastBody = document.getElementById('syncToastBody');
+            
+            // Set message and styling
+            toastBody.textContent = message;
+            toast.className = `toast sync-${type}`;
+            
+            // Show toast
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+        
+        async function uploadAndAnalyze() {
+            const form = document.getElementById('uploadForm');
+            const formData = new FormData();
+            const files = document.getElementById('files').files;
+            const collectionName = document.getElementById('collectionName').value;
+            
+            if (!files.length || !collectionName) {
+                alert('Inserisci nome collezione e seleziona almeno un file');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('loadingOverlay').style.display = 'block';
+            
+            try {
+                // Upload files first (assuming upload endpoint exists)
+                for (let file of files) {
+                    formData.append('files', file);
+                }
+                
+                const uploadResponse = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!uploadResponse.ok) {
+                    throw new Error('Errore durante il caricamento dei file');
+                }
+                
+                const uploadResult = await uploadResponse.json();
+                
+                // Then analyze
+                const analyzeResponse = await fetch('/dashboard/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        collection_name: collectionName,
+                        files: uploadResult.filenames || []
+                    })
+                });
+                
+                const analyzeResult = await analyzeResponse.json();
+                
+                if (analyzeResult.success) {
+                    // Redirect to new collection dashboard
+                    window.location.href = analyzeResult.dashboard_url;
+                } else {
+                    throw new Error(analyzeResult.error || 'Errore durante l\'analisi');
+                }
+                
+            } catch (error) {
+                console.error('Upload/analyze error:', error);
+                alert('Errore: ' + error.message);
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+        
+        function compareCollection(collectionId) {
+            if (selectedCollections.includes(collectionId)) {
+                selectedCollections = selectedCollections.filter(id => id !== collectionId);
+            } else {
+                selectedCollections.push(collectionId);
+            }
+            
+            // Update UI to show selected collections
+            updateComparisonSelection();
+            
+            if (selectedCollections.length >= 2) {
+                showComparisonModal();
+            }
+        }
+        
+        function updateComparisonSelection() {
+            document.querySelectorAll('.collection-card').forEach(card => {
+                const collectionId = parseInt(card.dataset.collectionId);
+                const compareBtn = card.querySelector('button[onclick*="compareCollection"]');
+                
+                if (selectedCollections.includes(collectionId)) {
+                    card.style.borderLeft = '4px solid var(--lego-blue)';
+                    compareBtn.classList.remove('btn-outline-secondary');
+                    compareBtn.classList.add('btn-outline-primary');
+                } else {
+                    card.style.borderLeft = 'none';
+                    compareBtn.classList.remove('btn-outline-primary');
+                    compareBtn.classList.add('btn-outline-secondary');
+                }
+            });
+        }
+        
+        async function showComparisonModal() {
+            try {
+                const response = await fetch(`/api/dashboard/compare?${selectedCollections.map(id => `ids=${id}`).join('&')}`);
+                const comparisonData = await response.json();
+                
+                // Create comparison chart
+                createComparisonChart(comparisonData);
+                
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('comparisonModal'));
+                modal.show();
+                
+            } catch (error) {
+                console.error('Comparison error:', error);
+                alert('Errore durante il confronto');
+            }
+        }
+        
+        function createComparisonChart(data) {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            const labels = Object.values(data).map(collection => collection.name);
+            const completionData = Object.values(data).map(collection => collection.overall_completion);
+            
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Completamento Generale', 'Colori Comuni', 'Varietà', 'Complessità'],
+                    datasets: labels.map((label, index) => ({
+                        label: label,
+                        data: [
+                            completionData[index],
+                            Math.random() * 100, // Mock data
+                            Math.random() * 100,
+                            Math.random() * 100
+                        ],
+                        borderColor: `hsl(${index * 120}, 70%, 50%)`,
+                        backgroundColor: `hsla(${index * 120}, 70%, 50%, 0.2)`,
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Event listeners
+        document.getElementById('syncBtn').addEventListener('click', syncBrickLink);
+    </script>
+</body>
+</html>

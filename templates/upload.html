@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Files - LEGO Analysis</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .upload-zone {
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 60px 20px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .upload-zone:hover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .upload-zone.dragover {
+            border-color: #007bff;
+            background-color: #e7f3ff;
+        }
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-cubes"></i> LEGO Analysis Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('index') }}">
+                    <i class="fas fa-home"></i> Home
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <h2 class="text-center mb-4">
+                    <i class="fas fa-upload me-2"></i>
+                    Carica i tuoi File LEGO
+                </h2>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Supported Formats Info -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-info-circle text-info me-2"></i>
+                            Formati Supportati
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <p class="mb-1"><strong>XML (BrickLink)</strong></p>
+                                <small class="text-muted">File inventario esportati da BrickLink</small>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="mb-1"><strong>CSV (Rebrickable/BrickOwl)</strong></p>
+                                <small class="text-muted">File CSV con colonne personalizzabili</small>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="mb-1"><strong>JSON</strong></p>
+                                <small class="text-muted">Formato JSON strutturato</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Form -->
+                <form method="POST" enctype="multipart/form-data" id="upload-form">
+                    <div class="upload-zone" id="upload-zone">
+                        <i class="fas fa-cloud-upload-alt fa-4x text-muted mb-3"></i>
+                        <h4>Trascina i file qui o clicca per selezionare</h4>
+                        <p class="text-muted">
+                            Seleziona uno o più file XML, CSV o JSON<br>
+                            Dimensione massima: 16MB per file
+                        </p>
+                        <input type="file" id="file-input" name="files[]" multiple accept=".xml,.csv,.json" class="d-none">
+                        <button type="button" class="btn btn-primary btn-lg" onclick="selectFiles(event)">
+                            <i class="fas fa-folder-open me-2"></i>
+                            Seleziona File
+                            <span id="file-count-badge" class="badge bg-secondary ms-2" style="display: none;">0</span>
+                        </button>
+                    </div>
+
+                    <!-- Selected Files -->
+                    <div id="selected-files" class="mt-4" style="display: none;">
+                        <h5>File Selezionati:</h5>
+                        <div class="file-list border rounded p-3 bg-light" id="file-list">
+                        </div>
+                        <div class="text-center mt-3">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-upload me-2"></i>
+                                Carica e Analizza
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-lg ms-2" onclick="clearFiles()">
+                                <i class="fas fa-times me-2"></i>
+                                Cancella
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Upload Progress -->
+                <div id="upload-progress" class="mt-4" style="display: none;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <p class="text-center mt-2">Caricamento in corso...</p>
+                </div>
+
+                <!-- Example Files -->
+                <div class="card mt-5">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-lightbulb text-warning me-2"></i>
+                            File di Esempio
+                        </h5>
+                        <p>Se non hai file di inventario, puoi scaricare questi esempi per testare il sistema:</p>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <a href="#" class="btn btn-outline-primary btn-sm" onclick="downloadExample('xml')">
+                                    <i class="fas fa-download me-1"></i>
+                                    Esempio XML
+                                </a>
+                            </div>
+                            <div class="col-md-4">
+                                <a href="#" class="btn btn-outline-primary btn-sm" onclick="downloadExample('csv')">
+                                    <i class="fas fa-download me-1"></i>
+                                    Esempio CSV
+                                </a>
+                            </div>
+                            <div class="col-md-4">
+                                <a href="#" class="btn btn-outline-primary btn-sm" onclick="downloadExample('json')">
+                                    <i class="fas fa-download me-1"></i>
+                                    Esempio JSON
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const selectedFilesDiv = document.getElementById('selected-files');
+        const fileList = document.getElementById('file-list');
+        const uploadForm = document.getElementById('upload-form');
+        const uploadProgress = document.getElementById('upload-progress');
+        const fileCountBadge = document.getElementById('file-count-badge');
+
+        // Keep track of selected files with their actual File objects
+        let selectedFiles = new Map(); // fileKey -> File object
+
+        function updateFileCountBadge() {
+            const count = selectedFiles.size;
+            if (count > 0) {
+                fileCountBadge.textContent = count;
+                fileCountBadge.style.display = 'inline';
+            } else {
+                fileCountBadge.style.display = 'none';
+            }
+        }
+
+        // Drag and drop functionality
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            console.log('File input changed - files selected:', e.target.files.length);
+            handleFiles(e.target.files);
+        });
+
+        // Click to select files
+        uploadZone.addEventListener('click', (e) => {
+            // Only trigger file selection if clicking on the zone itself, not on buttons
+            if (e.target === uploadZone || e.target.closest('.upload-icon, .upload-text')) {
+                console.log('Upload zone clicked - opening file dialog');
+                fileInput.click();
+            }
+        });
+
+        // Prevent double file dialog from button
+        function selectFiles(event) {
+            console.log('Select files button clicked');
+            event.stopPropagation(); // Prevent event from bubbling to upload zone
+            fileInput.click();
+        }
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+
+            selectedFilesDiv.style.display = 'block';
+
+            Array.from(files).forEach((file, index) => {
+                // Check if file is already selected (avoid duplicates)
+                const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
+                if (selectedFiles.has(fileKey)) {
+                    console.log(`File ${file.name} already selected, skipping`);
+                    return;
+                }
+                
+                // Store the actual File object
+                selectedFiles.set(fileKey, file);
+
+                const fileItem = document.createElement('div');
+                fileItem.className = 'd-flex justify-content-between align-items-center py-2';
+                fileItem.setAttribute('data-file-key', fileKey);
+                
+                // Add border if not first item
+                if (fileList.children.length > 0) {
+                    fileItem.style.borderTop = '1px solid #dee2e6';
+                }
+
+                const fileInfo = document.createElement('div');
+                fileInfo.innerHTML = `
+                    <strong>${file.name}</strong><br>
+                    <small class="text-muted">${formatFileSize(file.size)} - ${getFileType(file.name)}</small>
+                `;
+
+                const fileActions = document.createElement('div');
+                fileActions.className = 'd-flex align-items-center';
+                
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'btn btn-sm btn-outline-danger me-2';
+                removeButton.innerHTML = '<i class="fas fa-times"></i>';
+                removeButton.onclick = () => removeFile(fileKey, fileItem);
+                
+                const fileIcon = document.createElement('i');
+                fileIcon.className = `fas ${getFileIcon(file.name)} fa-2x text-primary`;
+
+                fileActions.appendChild(removeButton);
+                fileActions.appendChild(fileIcon);
+                
+                fileItem.appendChild(fileInfo);
+                fileItem.appendChild(fileActions);
+                fileList.appendChild(fileItem);
+            });
+            
+            updateFileCountBadge();
+            console.log(`Total selected files: ${selectedFiles.size}`);
+        }
+
+        function removeFile(fileKey, fileItem) {
+            selectedFiles.delete(fileKey);
+            fileItem.remove();
+            
+            if (selectedFiles.size === 0) {
+                selectedFilesDiv.style.display = 'none';
+            }
+            
+            updateFileCountBadge();
+            console.log(`File removed. Total selected files: ${selectedFiles.size}`);
+        }
+
+        function clearFiles() {
+            selectedFiles.clear();
+            selectedFilesDiv.style.display = 'none';
+            fileList.innerHTML = '';
+            fileInput.value = '';
+            updateFileCountBadge();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function getFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const types = {
+                'xml': 'BrickLink XML',
+                'csv': 'CSV Data',
+                'json': 'JSON Data'
+            };
+            return types[ext] || 'Unknown';
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'xml': 'fa-code',
+                'csv': 'fa-table',
+                'json': 'fa-brackets-curly'
+            };
+            return icons[ext] || 'fa-file';
+        }
+
+        // Form submission with progress
+        uploadForm.addEventListener('submit', (e) => {
+            e.preventDefault(); // Always prevent default to handle with FormData
+            
+            if (selectedFiles.size === 0) {
+                alert('Seleziona almeno un file da caricare');
+                return;
+            }
+
+            // Create FormData with all selected files
+            const formData = new FormData();
+            selectedFiles.forEach((file, fileKey) => {
+                formData.append('files[]', file);
+            });
+
+            uploadProgress.style.display = 'block';
+            selectedFilesDiv.style.display = 'none';
+
+            // Submit via fetch API
+            fetch(uploadForm.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    return response.text();
+                }
+            })
+            .then(data => {
+                if (data) {
+                    document.documentElement.innerHTML = data;
+                }
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                alert('Errore durante il caricamento dei file');
+                uploadProgress.style.display = 'none';
+                selectedFilesDiv.style.display = 'block';
+            });
+        });
+
+        function downloadExample(type) {
+            // This would normally download example files
+            alert(`Download esempio ${type.toUpperCase()} - Funzionalità in sviluppo`);
+        }
+    </script>
+</body>
+</html>

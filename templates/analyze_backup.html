@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Results - LEGO Analysis</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .result-card {
+            transition: transform 0.2s;
+        }
+        .result-card:hover {
+            transform: translateY(-2px);
+        }
+        .color-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            border: 1px solid #ddd;
+        }
+        .progress-wrapper {
+            position: relative;
+        }
+        .stats-card {
+            background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-cubes"></i> LEGO Analysis Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('upload_files') }}">
+                    <i class="fas fa-upload"></i> Upload Files
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h2><i class="fas fa-chart-line me-2"></i>Risultati Analisi</h2>
+                <p class="text-muted">Analisi completata per {{ results|length }} file</p>
+            </div>
+        </div>
+
+        <!-- Results Summary -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <h4 id="total-colors">-</h4>
+                        <p>Colori Unici</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <h4 id="total-types">-</h4>
+                        <p>Tipi Pezzi</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <h4>{{ results|length }}</h4>
+                        <p>File Analizzati</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <h4 id="total-missing">-</h4>
+                        <p>Pezzi Mancanti</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Results -->
+        {% for filename, data in results.items() %}
+        <div class="card result-card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-alt me-2"></i>
+                    {{ filename.replace('.xml', '').replace('.csv', '').replace('.json', '') }}
+                    <span class="badge bg-primary ms-2">{{ data.format }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4>{{ data.count }}</h4>
+                                <p class="mb-0">Elementi Totali</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4 id="colors-{{ loop.index }}">-</h4>
+                                <p class="mb-0">Colori Unici</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4 id="missing-{{ loop.index }}">-</h4>
+                                <p class="mb-0">Pezzi Mancanti</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4>{{ "%.1f"|format(data.items|selectattr('min_qty', 'gt', 0)|list|length / data.count * 100) }}%</h4>
+                                <p class="mb-0">Completamento</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sample Items -->
+                <div class="mt-3">
+                    <h6>Elementi Campione:</h6>
+                    <div class="row">
+                        {% for item in data.items[:5] %}
+                        <div class="col-md-6 mb-2">
+                            <small class="text-muted">
+                                <span class="color-indicator" style="background-color: {{ get_color_hex(item.color) }};"></span>
+                                <strong>{{ item.item_id }}</strong> - 
+                                Colore {{ item.color }} 
+                                ({{ item.min_qty }}/{{ item.qty_filled }})
+                            </small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Actions -->
+        <div class="row mt-4">
+            <!-- PDF Report Generation -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-file-pdf me-2"></i>Genera Report PDF</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Seleziona i file per il report PDF con grafici e statistiche dettagliate.</p>
+                        <div id="file-selection" class="mb-3">
+                            {% for filename in results.keys() %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="{{ filename }}" 
+                                       id="file-{{ loop.index }}" checked>
+                                <label class="form-check-label" for="file-{{ loop.index }}">
+                                    {{ filename }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-primary btn-lg" onclick="generateReport()">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            Genera Report PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- XML Wanted List Generation -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-list-ul me-2"></i>Genera Wanted List XML</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Seleziona i file XML per generare una wanted list BrickLink dei pezzi mancanti.</p>
+                        <div id="xml-file-selection" class="mb-3">
+                            {% for filename in results.keys() %}
+                            {% if filename.endswith('.xml') %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="{{ filename }}" 
+                                       id="xml-file-{{ loop.index }}" checked>
+                                <label class="form-check-label" for="xml-file-{{ loop.index }}">
+                                    {{ filename }}
+                                </label>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-success btn-lg" onclick="generateWantedList()">
+                            <i class="fas fa-shopping-cart me-2"></i>
+                            Genera Wanted List XML
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Generation Modal -->
+    <div class="modal fade" id="reportModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generazione Report PDF</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="report-progress" style="display: none;">
+                        <div class="progress mb-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <p class="text-center">Generazione report PDF in corso...</p>
+                    </div>
+                    <div id="report-success" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Report PDF generato con successo!
+                        </div>
+                        <div class="text-center">
+                            <a href="#" id="download-link" class="btn btn-success btn-lg">
+                                <i class="fas fa-download me-2"></i>
+                                Scarica Report PDF
+                            </a>
+                        </div>
+                    </div>
+                    <div id="report-error" style="display: none;">
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Errore durante la generazione del report.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wanted List Generation Modal -->
+    <div class="modal fade" id="wantedListModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generazione Wanted List XML</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="xml-progress" style="display: none;">
+                        <div class="text-center mb-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Caricamento...</span>
+                            </div>
+                        </div>
+                        <div class="progress mb-3">
+                            <div id="xml-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                                 role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div id="xml-status-text" class="text-center">
+                            <h6 class="text-primary">Preparazione in corso...</h6>
+                            <p class="text-muted mb-1">Sto analizzando i file selezionati</p>
+                            <small id="xml-detail-text" class="text-secondary">Inizializzazione...</small>
+                        </div>
+                        <div id="xml-file-progress" class="mt-3">
+                            <!-- Dynamic file progress will be shown here -->
+                        </div>
+                    </div>
+                    <div id="xml-success" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Wanted list XML generata con successo!
+                        </div>
+                        <div id="xml-stats" class="mb-3">
+                            <!-- Stats will be populated by JavaScript -->
+                        </div>
+                        <div class="text-center">
+                            <a href="#" id="xml-download-link" class="btn btn-success btn-lg">
+                                <i class="fas fa-download me-2"></i>
+                                Scarica Wanted List XML
+                            </a>
+                        </div>
+                    </div>
+                    <div id="xml-error" style="display: none;">
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Errore durante la generazione della wanted list.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables to prevent double modal opening
+        let reportModalOpen = false;
+        let wantedListModalOpen = false;
+
+        const results = {{ results | tojson }};
+
+        // Calculate statistics
+        let totalColors = new Set();
+        let totalTypes = new Set();
+        let totalMissing = 0;
+
+        Object.entries(results).forEach(([filename, data], index) => {
+            let fileColors = new Set();
+            let fileMissing = 0;
+
+            data['items'].forEach(item => {
+                fileColors.add(item.color);
+                totalColors.add(item.color);
+                totalTypes.add(item.item_type);
+                if (item.min_qty > 0) {
+                    fileMissing += item.min_qty;
+                    totalMissing += item.min_qty;
+                }
+            });
+
+            // Update file-specific stats
+            document.getElementById(`colors-${index + 1}`).textContent = fileColors.size;
+            document.getElementById(`missing-${index + 1}`).textContent = fileMissing;
+        });
+
+        // Update total stats
+        document.getElementById('total-colors').textContent = totalColors.size;
+        document.getElementById('total-types').textContent = totalTypes.size;
+        document.getElementById('total-missing').textContent = totalMissing;
+
+        // Helper function to update XML progress
+        function updateXmlProgress(percentage, title, detail) {
+            const progressBar = document.getElementById('xml-progress-bar');
+            const titleElement = document.getElementById('xml-status-text').querySelector('h6');
+            const detailElement = document.getElementById('xml-detail-text');
+            
+            if (progressBar) progressBar.style.width = percentage + '%';
+            if (titleElement) titleElement.textContent = title;
+            if (detailElement) detailElement.textContent = detail;
+        }
+
+        function generateReport() {
+            // Prevent multiple clicks and modal opening
+            if (reportModalOpen) return;
+            
+            const button = event.target;
+            if (button.disabled) return;
+            button.disabled = true;
+            setTimeout(() => button.disabled = false, 2000);
+
+            const selectedFiles = Array.from(document.querySelectorAll('#file-selection input:checked'))
+                .map(input => input.value);
+
+            if (selectedFiles.length === 0) {
+                alert('Seleziona almeno un file per generare il report');
+                button.disabled = false;
+                return;
+            }
+
+            reportModalOpen = true;
+            const modal = new bootstrap.Modal(document.getElementById('reportModal'), {
+                backdrop: 'static',
+                keyboard: false
+            });
+            
+            // Reset modal state when closed
+            document.getElementById('reportModal').addEventListener('hidden.bs.modal', function () {
+                reportModalOpen = false;
+            }, { once: true });
+            
+            modal.show();
+
+            // Show progress
+            document.getElementById('report-progress').style.display = 'block';
+            document.getElementById('report-success').style.display = 'none';
+            document.getElementById('report-error').style.display = 'none';
+
+            // Make API call to generate report
+            fetch('/generate_report', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    files: selectedFiles
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('report-progress').style.display = 'none';
+                
+                if (data.success) {
+                    document.getElementById('report-success').style.display = 'block';
+                    document.getElementById('download-link').href = data.report_url;
+                } else {
+                    document.getElementById('report-error').style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('report-progress').style.display = 'none';
+                document.getElementById('report-error').style.display = 'block';
+            });
+        }
+
+        function generateWantedList() {
+            // Prevent multiple clicks and modal opening
+            if (wantedListModalOpen) return;
+            
+            const button = event.target;
+            if (button.disabled) return;
+            button.disabled = true;
+            setTimeout(() => button.disabled = false, 2000);
+
+            const selectedFiles = Array.from(document.querySelectorAll('#xml-file-selection input:checked'))
+                .map(input => input.value);
+
+            if (selectedFiles.length === 0) {
+                alert('Seleziona almeno un file per generare la wanted list');
+                button.disabled = false;
+                return;
+            }
+
+            wantedListModalOpen = true;
+            const modal = new bootstrap.Modal(document.getElementById('wantedListModal'), {
+                backdrop: 'static',
+                keyboard: false
+            });
+            
+            // Reset modal state when closed
+            document.getElementById('wantedListModal').addEventListener('hidden.bs.modal', function () {
+                wantedListModalOpen = false;
+            }, { once: true });
+            
+            modal.show();
+
+            // Show detailed progress
+            document.getElementById('xml-progress').style.display = 'block';
+            document.getElementById('xml-success').style.display = 'none';
+            document.getElementById('xml-error').style.display = 'none';
+            
+            // Initialize progress
+            updateXmlProgress(10, 'Preparazione in corso...', 'Copiando file temporanei');
+            
+            // Show selected files info
+            const fileProgressDiv = document.getElementById('xml-file-progress');
+            fileProgressDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">File Selezionati (${selectedFiles.length})</h6>
+                        <div class="row">
+                            ${selectedFiles.map((file, index) => `
+                                <div class="col-md-6 mb-1">
+                                    <small class="text-muted">
+                                        <i class="fas fa-file-alt me-1"></i>
+                                        ${file.replace(/^\d{8}_\d{6}_/, '')}
+                                    </small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Make API call to generate wanted list with progress tracking
+            updateXmlProgress(30, 'Invio richiesta...', 'Comunicazione con il server');
+            
+            fetch('/generate_wanted_list', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    files: selectedFiles
+                })
+            })
+            .then(response => {
+                updateXmlProgress(60, 'Elaborazione in corso...', 'Il server sta processando i file');
+                return response.json();
+            })
+            .then(data => {
+                updateXmlProgress(100, 'Completato!', 'Wanted list generata con successo');
+                
+                // Small delay to show completion before hiding progress
+                setTimeout(() => {
+                    document.getElementById('xml-progress').style.display = 'none';
+                    
+                    if (data.success) {
+                        document.getElementById('xml-success').style.display = 'block';
+                        document.getElementById('xml-download-link').href = data.wanted_list_url;
+                        
+                        // Show stats
+                        const statsDiv = document.getElementById('xml-stats');
+                        statsDiv.innerHTML = `
+                            <div class="row text-center mb-3">
+                                <div class="col-md-3">
+                                    <h6>File Processati</h6>
+                                    <span class="badge bg-primary fs-6">${data.stats.files_processed}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6>Elementi Unici</h6>
+                                    <span class="badge bg-success fs-6">${data.stats.unique_items_in_wanted_list}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6>Pezzi Totali</h6>
+                                    <span class="badge bg-warning fs-6">${data.stats.total_pieces_needed}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6>Combinazioni</h6>
+                                    <span class="badge bg-info fs-6">${data.stats.items_combined || 0}</span>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    <h6 class="text-muted">Set Processati:</h6>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        ${data.stats.source_files ? data.stats.source_files.map(file => 
+                                            `<span class="badge bg-secondary">${file.replace('.xml', '')}</span>`
+                                        ).join('') : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        document.getElementById('xml-error').style.display = 'block';
+                    }
+                }, 1000); // Show completion for 1 second
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                updateXmlProgress(0, 'Errore!', 'Si è verificato un problema durante la generazione');
+                setTimeout(() => {
+                    document.getElementById('xml-progress').style.display = 'none';
+                    document.getElementById('xml-error').style.display = 'block';
+                }, 1000);
+            });
+        }
+    </script>
+</body>
+</html>

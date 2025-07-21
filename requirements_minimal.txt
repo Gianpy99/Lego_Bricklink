@@ -1,0 +1,13 @@
+# Minimal requirements for basic functionality
+# Use this if full requirements.txt fails
+
+Flask>=2.0.0
+werkzeug>=2.0.0
+matplotlib>=3.0.0
+requests>=2.20.0
+
+# These are optional - install manually if needed:
+# pandas
+# openpyxl 
+# schedule
+# requests-oauthlib
