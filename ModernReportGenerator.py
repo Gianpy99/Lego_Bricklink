@@ -51,7 +51,16 @@ try:
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     import numpy as np
     import seaborn as sns
+    import warnings
+    from PIL import Image
     MATPLOTLIB_AVAILABLE = True
+    
+    # Suppress specific warnings
+    warnings.filterwarnings('ignore', message='Using categorical units to plot a list of strings')
+    warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+    
+    # Increase PIL decompression bomb limit to handle large images
+    Image.MAX_IMAGE_PIXELS = None
     
     # Set modern style
     plt.style.use('seaborn-v0_8-darkgrid')
@@ -436,10 +445,12 @@ class ModernReportGenerator:
             completions = [x[1] for x in top_colors]
             colors_list = [lego_colors.get(x[5], '#3498db') for x in top_colors]
             
-            bars1 = ax1.barh(range(len(names)), completions, color=colors_list, alpha=0.8, 
+            # Use explicit positions to avoid categorical warning
+            y_pos = np.arange(len(names))
+            bars1 = ax1.barh(y_pos, completions, color=colors_list, alpha=0.8, 
                            edgecolor='#2c3e50', linewidth=1.2, height=0.7)
             
-            ax1.set_yticks(range(len(names)))
+            ax1.set_yticks(y_pos)
             ax1.set_yticklabels(names, fontsize=11, fontweight='bold')
             ax1.invert_yaxis()
             ax1.set_xlabel('Completion Percentage (%)', fontsize=12, fontweight='bold', color='#2c3e50')
@@ -486,9 +497,12 @@ class ModernReportGenerator:
             owned_pieces = [x[3] for x in top_colors]
             missing_pieces = [x[4] for x in top_colors]
             
-            bars_owned = ax3.bar(range(len(names)), owned_pieces, label='Owned', 
+            # Use explicit integer positions to avoid categorical warning
+            x_pos = np.arange(len(names))
+            
+            bars_owned = ax3.bar(x_pos, owned_pieces, label='Owned', 
                                color='#27ae60', alpha=0.8, edgecolor='#2c3e50', linewidth=0.5)
-            bars_missing = ax3.bar(range(len(names)), missing_pieces, bottom=owned_pieces, 
+            bars_missing = ax3.bar(x_pos, missing_pieces, bottom=owned_pieces, 
                                  label='Missing', color='#e74c3c', alpha=0.8, 
                                  edgecolor='#2c3e50', linewidth=0.5)
             
@@ -496,7 +510,7 @@ class ModernReportGenerator:
             ax3.set_ylabel('Number of Pieces', fontsize=12, fontweight='bold', color='#2c3e50')
             ax3.set_title('Owned vs Missing Pieces by Color', fontsize=14, fontweight='bold', 
                          color='#2c3e50', pad=20)
-            ax3.set_xticks(range(len(names)))
+            ax3.set_xticks(x_pos)
             ax3.set_xticklabels(names, rotation=45, ha='right', fontsize=10)
             ax3.legend(loc='upper right', fontsize=11, framealpha=0.9)
             ax3.grid(axis='y', alpha=0.3, linestyle='--', color='#7f8c8d')
@@ -598,11 +612,14 @@ class ModernReportGenerator:
                 elif comp <= 80: range_counts[3] += 1
                 else: range_counts[4] += 1
             
-            bars = ax1.bar(completion_ranges, range_counts, color=colors_modern, alpha=0.8, 
+            # Use explicit positions to avoid categorical warning
+            x_pos = np.arange(len(completion_ranges))
+            bars = ax1.bar(x_pos, range_counts, color=colors_modern, alpha=0.8, 
                           edgecolor='#2c3e50', linewidth=1.5)
             ax1.set_title('Completion Distribution', fontsize=14, fontweight='bold', color='#2c3e50', pad=15)
             ax1.set_ylabel('Number of Sets', fontsize=11, fontweight='bold', color='#2c3e50')
-            ax1.tick_params(axis='x', rotation=45, labelsize=9)
+            ax1.set_xticks(x_pos)
+            ax1.set_xticklabels(completion_ranges, rotation=45, fontsize=9)
             ax1.grid(axis='y', alpha=0.3, linestyle='--')
             ax1.set_facecolor('#fafafa')
             
@@ -657,9 +674,11 @@ class ModernReportGenerator:
                 names = [s['name'][:15] + '...' if len(s['name']) > 15 else s['name'] for s in priority_sets]
                 missing = [s.get('missing_pieces', 0) for s in priority_sets]
                 
-                bars = ax4.barh(range(len(names)), missing, color='#e74c3c', alpha=0.7, 
+                # Use explicit positions to avoid categorical warning
+                y_pos = np.arange(len(names))
+                bars = ax4.barh(y_pos, missing, color='#e74c3c', alpha=0.7, 
                               edgecolor='#2c3e50', linewidth=1)
-                ax4.set_yticks(range(len(names)))
+                ax4.set_yticks(y_pos)
                 ax4.set_yticklabels(names, fontsize=9)
                 ax4.invert_yaxis()
                 ax4.set_xlabel('Missing Pieces', fontsize=11, fontweight='bold', color='#2c3e50')
@@ -775,19 +794,25 @@ class ModernReportGenerator:
             categories = {k: v for k, v in categories.items() if v > 0}
             
             if categories:
-                ax6.bar(categories.keys(), categories.values(), 
+                # Use explicit positions to avoid categorical warning
+                cat_labels = list(categories.keys())
+                cat_values = list(categories.values())
+                x_pos = np.arange(len(cat_labels))
+                
+                ax6.bar(x_pos, cat_values, 
                        color=plt.cm.Set3(np.linspace(0, 1, len(categories))),
                        alpha=0.8, edgecolor='#2c3e50', linewidth=1.5)
                 ax6.set_ylabel('Number of Sets', fontsize=12, fontweight='bold', color='#2c3e50')
                 ax6.set_title('Collection by Theme (Enhanced Recognition)', fontsize=14, fontweight='bold', 
                              color='#2c3e50', pad=15)
-                ax6.tick_params(axis='x', rotation=45, labelsize=10)
+                ax6.set_xticks(x_pos)
+                ax6.set_xticklabels(cat_labels, rotation=45, fontsize=10)
                 ax6.grid(axis='y', alpha=0.3, linestyle='--')
                 ax6.set_facecolor('#fafafa')
                 
                 # Aggiungi valori
-                for i, (cat, count) in enumerate(categories.items()):
-                    ax6.text(i, count + max(categories.values())*0.01, str(count),
+                for i, count in enumerate(cat_values):
+                    ax6.text(i, count + max(cat_values)*0.01, str(count),
                            ha='center', va='bottom', fontsize=11, fontweight='bold')
             
             # Layout finale
@@ -847,11 +872,13 @@ class ModernReportGenerator:
                 total_values.append(total_value)
                 color_names.append(self.color_mapping.get(color_code, f"Color {color_code}")[:8])
             
-            bars = ax1.bar(range(len(color_names)), total_values, 
+            # Use explicit positions to avoid categorical warning
+            x_pos = np.arange(len(color_names))
+            bars = ax1.bar(x_pos, total_values, 
                           color=plt.cm.plasma(np.linspace(0, 1, len(color_names))),
                           alpha=0.8, edgecolor='#2c3e50', linewidth=1.5)
             
-            ax1.set_xticks(range(len(color_names)))
+            ax1.set_xticks(x_pos)
             ax1.set_xticklabels(color_names, rotation=45, ha='right', fontsize=10)
             ax1.set_ylabel('Estimated Value (€)', fontsize=11, fontweight='bold', color='#2c3e50')
             ax1.set_title('Collection Value Analysis', fontsize=13, fontweight='bold', 
@@ -886,9 +913,11 @@ class ModernReportGenerator:
                     efficiency_data[2, i] = 1
             
             im = ax2.imshow(efficiency_data, cmap='RdYlGn', aspect='auto', alpha=0.8)
-            ax2.set_xticks(range(len(labels_x)))
+            x_pos_heat = np.arange(len(labels_x))
+            y_pos_heat = np.arange(len(labels_y))
+            ax2.set_xticks(x_pos_heat)
             ax2.set_xticklabels(labels_x, rotation=45, ha='right', fontsize=10)
-            ax2.set_yticks(range(len(labels_y)))
+            ax2.set_yticks(y_pos_heat)
             ax2.set_yticklabels(labels_y, fontsize=11)
             ax2.set_title('Completion Strategy Heatmap', fontsize=13, fontweight='bold', 
                          color='#2c3e50', pad=15)
@@ -970,11 +999,15 @@ class ModernReportGenerator:
             roi_values = [85, 65, 120, 95]  # ROI percentages
             colors_roi = ['#e74c3c', '#f39c12', '#27ae60', '#3498db']
             
-            bars = ax4.bar(strategies, roi_values, color=colors_roi, alpha=0.8, 
+            # Use explicit positions to avoid categorical warning
+            x_pos = np.arange(len(strategies))
+            bars = ax4.bar(x_pos, roi_values, color=colors_roi, alpha=0.8, 
                           edgecolor='#2c3e50', linewidth=2)
             ax4.set_ylabel('ROI %', fontsize=11, fontweight='bold', color='#2c3e50')
             ax4.set_title('Purchase Strategy ROI', fontsize=13, fontweight='bold', 
                          color='#2c3e50', pad=15)
+            ax4.set_xticks(x_pos)
+            ax4.set_xticklabels(strategies, fontsize=10)
             ax4.set_ylim(0, 150)
             ax4.grid(axis='y', alpha=0.3, linestyle='--')
             ax4.set_facecolor('#fafafa')
@@ -1024,10 +1057,12 @@ class ModernReportGenerator:
             set_names_short = [s['name'][:10] + '...' for s in self.analytics['sets_data'][:10]]
             
             colors_pred = plt.cm.RdYlGn_r(np.array(months_to_complete) / max(months_to_complete) if months_to_complete else [0])
-            bars = ax6.barh(range(len(set_names_short)), months_to_complete, 
+            # Use explicit positions to avoid categorical warning
+            y_pos = np.arange(len(set_names_short))
+            bars = ax6.barh(y_pos, months_to_complete, 
                           color=colors_pred, alpha=0.8, edgecolor='#2c3e50', linewidth=1)
             
-            ax6.set_yticks(range(len(set_names_short)))
+            ax6.set_yticks(y_pos)
             ax6.set_yticklabels(set_names_short, fontsize=10)
             ax6.invert_yaxis()
             ax6.set_xlabel('Months to Complete', fontsize=11, fontweight='bold', color='#2c3e50')
