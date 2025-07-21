@@ -134,102 +134,128 @@ class ModernReportGenerator:
             return f"{number:,}"
     
     def _create_color_distribution_chart(self):
-        """Crea un grafico a torta avanzato della distribuzione dei colori con stile professionale"""
+        """Crea un grafico comparison NEEDED vs OWNED per colore - stile report originale"""
         if not MATPLOTLIB_AVAILABLE:
             return None
             
         try:
-            # Prepara i dati per il grafico
+            # Prepara i dati per il grafico comparison
             colors_data = []
             for color_code, stats in self.analytics['color_analysis'].items():
                 color_name = self.color_mapping.get(color_code, f"Color {color_code}")
-                colors_data.append((color_name, stats['total'], color_code))
+                if stats['total'] > 0:  # Solo colori con pezzi necessari
+                    colors_data.append({
+                        'name': color_name,
+                        'needed': stats['total'],
+                        'owned': stats['owned'],
+                        'missing': stats['missing'],
+                        'color_code': color_code,
+                        'completion': (stats['owned'] / stats['total'] * 100) if stats['total'] > 0 else 0
+                    })
             
-            # Ordina per numero di pezzi e prendi i top 12
-            colors_data.sort(key=lambda x: x[1], reverse=True)
-            top_colors = colors_data[:12]
+            # Ordina per numero di pezzi necessari e prendi i top 15
+            colors_data.sort(key=lambda x: x['needed'], reverse=True)
+            top_colors = colors_data[:15]
             
-            if len(colors_data) > 12:
-                other_total = sum(x[1] for x in colors_data[12:])
-                top_colors.append(('Others', other_total, 'other'))
-            
-            # Configurazione stile moderno
-            plt.style.use('default')
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 10))
-            fig.patch.set_facecolor('#f8f9fa')
-            
-            # Mappa colori LEGO realistici
+            # Crea colori realistici per LEGO
             lego_colors = {
-                '1': '#F2F3F2',   # White
-                '5': '#D50000',   # Red  
-                '6': '#0055BF',   # Blue
-                '11': '#1B2A34',  # Black
-                '4': '#F57C20',   # Orange
-                '3': '#009247',   # Green
-                '14': '#FFFF00',  # Yellow
-                '28': '#A3A2A4',  # Light Gray
-                '2': '#8D7553',   # Tan
-                '85': '#4B9F4A',  # Dark Green
-                'other': '#95A5A6'
+                'White': '#FFFFFF', 'Black': '#0D0D0D', 'Red': '#C4281C', 'Blue': '#0055BF',
+                'Yellow': '#FFD700', 'Green': '#00852B', 'Orange': '#FE8A18', 'Brown': '#583927',
+                'Light Gray': '#9C9C9C', 'Dark Gray': '#6C6C6C', 'Tan': '#E4CD9E', 'Pink': '#FF9ECD',
+                'Purple': '#81007B', 'Lime': '#BBE90B', 'Dark Red': '#720E0F', 'Sand Blue': '#5A93DB',
+                'Dark Bluish Gray': '#595D60', 'Light Bluish Gray': '#AFB5C7', 'Reddish Brown': '#89493F'
             }
             
-            # Grafico a torta principale con shadow e explosion
-            labels = [x[0] for x in top_colors]
-            sizes = [x[1] for x in top_colors]
-            colors_list = [lego_colors.get(x[2], f'C{i}') for i, x in enumerate(top_colors)]
+            # Crea figura grande per confronto dettagliato
+            fig, ax = plt.subplots(figsize=(12, max(8, len(top_colors) * 0.6)))
+            fig.patch.set_facecolor('#f8f9fa')
             
-            # Explode i primi 3 settori
-            explode = [0.05 if i < 3 else 0 for i in range(len(labels))]
+            # Prepara dati per il grafico a barre grouped
+            colors_names = [color['name'] for color in top_colors]
+            needed_values = [color['needed'] for color in top_colors]
+            owned_values = [color['owned'] for color in top_colors]
             
-            wedges, texts, autotexts = ax1.pie(sizes, labels=labels, autopct=lambda pct: f'{pct:.1f}%\n({int(pct/100*sum(sizes))} pcs)',
-                                             startangle=90, colors=colors_list, explode=explode,
-                                             shadow=True, textprops={'fontsize': 9, 'fontweight': 'bold'})
+            # Posizioni delle barre
+            y_pos = np.arange(len(colors_names))
+            bar_height = 0.35
             
-            # Migliora il cerchio centrale per stile donut
-            centre_circle = plt.Circle((0,0), 0.70, fc='white', linewidth=2, edgecolor='#2c3e50')
-            ax1.add_artist(centre_circle)
+            # Crea le barre orizzontali grouped
+            bars_needed = ax.barh(y_pos - bar_height/2, needed_values, bar_height, 
+                                 label='📋 NEEDED (Total Required)', color='#e74c3c', alpha=0.8,
+                                 edgecolor='#2c3e50', linewidth=0.5)
+            bars_owned = ax.barh(y_pos + bar_height/2, owned_values, bar_height,
+                                label='✅ OWNED (Currently Have)', color='#27ae60', alpha=0.8,
+                                edgecolor='#2c3e50', linewidth=0.5)
             
-            # Titolo e statistiche centrali
-            ax1.set_title('🎨 Color Distribution Analysis\nLEGO Collection Overview', 
-                         fontsize=16, fontweight='bold', pad=30, color='#2c3e50')
+            # Personalizza il grafico
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(colors_names, fontsize=11, fontweight='bold')
+            ax.invert_yaxis()
+            ax.set_xlabel('Number of Pieces', fontsize=14, fontweight='bold', color='#2c3e50')
+            ax.set_title('🧱 LEGO Color Comparison: NEEDED vs OWNED\n(Organized by Color - Most Required First)', 
+                        fontsize=16, fontweight='bold', color='#2c3e50', pad=25)
             
-            # Statistiche nel centro
-            total_pieces = sum(sizes)
-            unique_colors = len(top_colors)
-            ax1.text(0, 0, f'Total Pieces\n{total_pieces:,}\n\nUnique Colors\n{unique_colors}', 
-                    ha='center', va='center', fontsize=12, fontweight='bold', color='#2c3e50')
+            # Grid e stile
+            ax.grid(axis='x', alpha=0.3, linestyle='--')
+            ax.set_facecolor('#fafafa')
             
-            # Grafico a barre orizzontali dettagliato
-            y_pos = range(len(labels))
-            bars = ax2.barh(y_pos, sizes, color=colors_list, alpha=0.8, edgecolor='#2c3e50', linewidth=0.5)
+            # Aggiungi valori e percentuali sui bar
+            max_value = max(max(needed_values), max(owned_values))
+            for i, color_data in enumerate(top_colors):
+                needed = color_data['needed']
+                owned = color_data['owned']
+                completion = color_data['completion']
+                
+                # Valore barra NEEDED
+                ax.text(needed + max_value*0.01, i - bar_height/2, f'{needed:,}', 
+                       ha='left', va='center', fontsize=9, fontweight='bold', color='#c0392b')
+                
+                # Valore barra OWNED + percentuale
+                ax.text(owned + max_value*0.01, i + bar_height/2, f'{owned:,} ({completion:.1f}%)', 
+                       ha='left', va='center', fontsize=9, fontweight='bold', color='#1e8449')
+                
+                # Indicatore di completamento sulla destra
+                status_x = max_value * 1.15
+                if completion >= 100:
+                    status_icon = "✅ COMPLETE"
+                    status_color = '#27ae60'
+                elif completion >= 50:
+                    status_icon = "🔄 PARTIAL"
+                    status_color = '#f39c12'
+                else:
+                    status_icon = "❌ MISSING"
+                    status_color = '#e74c3c'
+                
+                ax.text(status_x, i, status_icon, ha='left', va='center', 
+                       fontsize=9, fontweight='bold', color=status_color)
             
-            # Personalizza il grafico a barre
-            ax2.set_yticks(y_pos)
-            ax2.set_yticklabels(labels, fontsize=10)
-            ax2.invert_yaxis()
-            ax2.set_xlabel('Number of Pieces', fontsize=12, fontweight='bold', color='#2c3e50')
-            ax2.set_title('📊 Detailed Piece Count by Color', fontsize=14, fontweight='bold', color='#2c3e50', pad=20)
-            ax2.grid(axis='x', alpha=0.3, linestyle='--')
-            ax2.set_facecolor('#fafafa')
+            # Legenda e statistiche
+            ax.legend(loc='lower right', fontsize=12, frameon=True, fancybox=True, 
+                     shadow=True, framealpha=0.9, bbox_to_anchor=(0.98, 0.02))
             
-            # Aggiungi valori sui bar
-            for i, (bar, size) in enumerate(zip(bars, sizes)):
-                width = bar.get_width()
-                percentage = (size / total_pieces) * 100
-                ax2.text(width + max(sizes)*0.01, bar.get_y() + bar.get_height()/2,
-                        f'{size:,} ({percentage:.1f}%)', ha='left', va='center', 
-                        fontsize=9, fontweight='bold', color='#2c3e50')
+            # Box con statistiche generali
+            total_needed = sum(needed_values)
+            total_owned = sum(owned_values)
+            overall_completion = (total_owned / total_needed * 100) if total_needed > 0 else 0
             
-            # Stile generale
+            stats_text = f"📊 OVERALL STATISTICS:\n"
+            stats_text += f"Total Pieces Needed: {total_needed:,}\n"
+            stats_text += f"Total Pieces Owned: {total_owned:,}\n"
+            stats_text += f"Overall Completion: {overall_completion:.1f}%\n"
+            stats_text += f"Colors Analyzed: {len(top_colors)}"
+            
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=10,
+                   verticalalignment='top', bbox=dict(boxstyle='round,pad=0.5', 
+                   facecolor='#ecf0f1', alpha=0.9, edgecolor='#2c3e50'))
+            
+            # Layout ottimizzato
             plt.tight_layout()
-            fig.suptitle('🧱 LEGO Color Analysis Report', fontsize=20, fontweight='bold', 
-                        color='#2c3e50', y=0.98)
             
             # Salva con alta qualità
             import tempfile
             tmp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
             plt.savefig(tmp_file.name, format='png', dpi=600, bbox_inches='tight', 
-                       facecolor='#f8f9fa', edgecolor='none', pad_inches=0.2)
+                       facecolor='#f8f9fa', edgecolor='none', pad_inches=0.3)
             plt.close()
             tmp_file.close()
             
@@ -238,7 +264,7 @@ class ModernReportGenerator:
             return tmp_file.name
                 
         except Exception as e:
-            logging.error(f"Error creating color distribution chart: {e}")
+            logging.error(f"Error creating color comparison chart: {e}")
             plt.close()
             return None
     
