@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrickLink Integration - LEGO Analysis</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            color: #d32f2f;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+        
+        .section h2 {
+            color: #1976d2;
+            margin-top: 0;
+            border-bottom: 2px solid #1976d2;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input[type="text"], input[type="password"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        input:focus {
+            border-color: #1976d2;
+            outline: none;
+            box-shadow: 0 0 5px rgba(25, 118, 210, 0.3);
+        }
+        
+        .btn {
+            background: #1976d2;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #1565c0;
+        }
+        
+        .btn-success {
+            background: #388e3c;
+        }
+        
+        .btn-success:hover {
+            background: #2e7d32;
+        }
+        
+        .btn-danger {
+            background: #d32f2f;
+        }
+        
+        .btn-danger:hover {
+            background: #c62828;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        .status-success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border: 2px solid #4caf50;
+        }
+        
+        .status-error {
+            background: #ffebee;
+            color: #c62828;
+            border: 2px solid #f44336;
+        }
+        
+        .status-warning {
+            background: #fff3e0;
+            color: #f57c00;
+            border: 2px solid #ff9800;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .xml-files {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            background: white;
+        }
+        
+        .xml-file-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .xml-file-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .xml-file-item.selected {
+            background: #e3f2fd;
+            border-left: 4px solid #1976d2;
+        }
+        
+        .wanted-lists {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            background: white;
+        }
+        
+        .wanted-list-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .nav-links {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .nav-links a {
+            color: #1976d2;
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: bold;
+        }
+        
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧱 BrickLink Integration</h1>
+        
+        <div class="nav-links">
+            <a href="/">← Torna all'Analisi</a>
+        </div>
+        
+        <div id="status-display"></div>
+        
+        <!-- Avviso Account Type -->
+        <div class="section">
+            <h2>⚠️ Importante: Tipi di Account BrickLink</h2>
+            <div class="status status-warning">
+                <strong>Note:</strong> Le API per creare/modificare wanted list sono disponibili solo per <strong>account SELLER</strong> su BrickLink.
+                <br><br>
+                <strong>Account BUYER:</strong> Usa la funzione di <strong>download XML</strong> e importa manualmente su BrickLink.<br>
+                <strong>Account SELLER:</strong> Puoi usare l'upload automatico configurando le credenziali API.
+            </div>
+        </div>
+        
+        <!-- Sezione Download XML (per tutti gli account) -->
+        <div class="section">
+            <h2>📥 Download File XML - Tutti gli Account</h2>
+            <p><strong>Funziona per tutti i tipi di account BrickLink!</strong></p>
+            
+            <div class="form-group">
+                <label>File XML Disponibili:</label>
+                <div id="xml-files-list" class="xml-files"></div>
+            </div>
+            
+            <button class="btn btn-success" onclick="downloadSelectedXML()" id="download-btn" disabled>⬇️ Download File XML</button>
+            <button class="btn" onclick="showImportInstructions()" id="instructions-btn">📖 Istruzioni Import Manuale</button>
+            
+            <div id="import-instructions" class="hidden" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff;">
+                <h4>📖 Come Importare su BrickLink (Account Buyer/Seller)</h4>
+                <ol>
+                    <li><strong>Scarica il file XML</strong> usando il pulsante sopra</li>
+                    <li><strong>Vai su BrickLink</strong> → <a href="https://www.bricklink.com/wantedXML.asp" target="_blank">Wanted List → Import/Export</a></li>
+                    <li><strong>Clicca "Choose File"</strong> e seleziona il file XML scaricato</li>
+                    <li><strong>Seleziona "Import as New List"</strong> o "Replace Existing List"</li>
+                    <li><strong>Clicca "Upload"</strong> per importare la lista</li>
+                </ol>
+                <p><strong>✅ Funzione garantita per tutti i tipi di account!</strong></p>
+            </div>
+        </div>
+        
+        <!-- Sezione Setup Credenziali (solo per account SELLER) -->
+        <div class="section">
+            <h2>🔐 Upload Automatico - Solo Account SELLER</h2>
+            <div class="status status-warning">
+                <strong>Questa sezione funziona solo se hai un account SELLER su BrickLink</strong><br>
+                Se hai un account buyer normale, usa il download XML sopra.
+            </div>
+            <div id="credentials-status"></div>
+            
+            <div id="credentials-form">
+                <p><strong>Per utilizzare l'integrazione BrickLink, inserisci le tue credenziali API:</strong></p>
+                <p><small>Puoi ottenere le credenziali API da: <a href="https://www.bricklink.com/v2/api/register_consumer.page" target="_blank">BrickLink API Registration</a></small></p>
+                
+                <div class="form-group">
+                    <label for="consumer-key">Consumer Key:</label>
+                    <input type="text" id="consumer-key" placeholder="Il tuo Consumer Key">
+                </div>
+                
+                <div class="form-group">
+                    <label for="consumer-secret">Consumer Secret:</label>
+                    <input type="password" id="consumer-secret" placeholder="Il tuo Consumer Secret">
+                </div>
+                
+                <div class="form-group">
+                    <label for="token">Token:</label>
+                    <input type="text" id="token" placeholder="Il tuo Token">
+                </div>
+                
+                <div class="form-group">
+                    <label for="token-secret">Token Secret:</label>
+                    <input type="password" id="token-secret" placeholder="Il tuo Token Secret">
+                </div>
+                
+                <button class="btn btn-success" onclick="saveCredentials()">💾 Salva Credenziali</button>
+                <button class="btn" onclick="testConnection()">🔄 Test Connessione</button>
+            </div>
+        </div>
+        
+        <!-- Sezione Upload Wanted List (solo per account SELLER) -->
+        <div class="section" id="upload-section">
+            <h2>📤 Upload Automatico - Solo Account SELLER</h2>
+            <div class="status status-warning">
+                <strong>Funzione disponibile solo per account SELLER</strong>
+            </div>
+            
+            <div class="form-group">
+                <label>File XML Disponibili:</label>
+                <div id="xml-files-list" class="xml-files"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="list-name">Nome Lista (opzionale):</label>
+                <input type="text" id="list-name" placeholder="Se vuoto, userà il nome del file">
+                <small>Se esiste già una lista con questo nome, verrà sostituita automaticamente.</small>
+            </div>
+            
+            <button class="btn btn-success" onclick="uploadToSetkLink()" id="upload-btn" disabled>🚀 Upload su BrickLink</button>
+        </div>
+        
+        <!-- Sezione Liste Esistenti -->
+        <div class="section" id="existing-lists-section">
+            <h2>📋 Le Tue Wanted List su BrickLink</h2>
+            <button class="btn" onclick="loadWantedLists()">🔄 Aggiorna Lista</button>
+            <div id="wanted-lists" class="wanted-lists"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedXmlFile = null;
+        
+        // Carica lo stato all'avvio
+        document.addEventListener('DOMContentLoaded', function() {
+            checkBrickLinkStatus();
+            loadXmlFiles();
+        });
+        
+        async function checkBrickLinkStatus() {
+            try {
+                const response = await fetch('/bricklink/status');
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('status-display');
+                const credentialsStatus = document.getElementById('credentials-status');
+                const uploadSection = document.getElementById('upload-section');
+                const existingListsSection = document.getElementById('existing-lists-section');
+                
+                if (!data.available) {
+                    statusDiv.innerHTML = '<div class="status status-error">❌ BrickLink integration not available - missing dependencies</div>';
+                    return;
+                }
+                
+                if (data.connected) {
+                    const accountType = data.is_seller ? 'SELLER' : 'BUYER';
+                    const accountIcon = data.is_seller ? '🛒' : '👤';
+                    
+                    statusDiv.innerHTML = `<div class="status status-success">✅ Connesso a BrickLink come account ${accountType} ${accountIcon}</div>`;
+                    credentialsStatus.innerHTML = `<div class="status status-success">✅ Account: ${data.user_name} (${accountType})</div>`;
+                    
+                    document.getElementById('credentials-form').style.display = 'none';
+                    
+                    if (data.is_seller) {
+                        uploadSection.style.display = 'block';
+                        existingListsSection.style.display = 'block';
+                        loadWantedLists();
+                    } else {
+                        // Hide seller-only sections for buyer accounts
+                        uploadSection.style.display = 'none';
+                        existingListsSection.style.display = 'none';
+                        
+                        // Show buyer-specific message
+                        statusDiv.innerHTML += '<div class="status status-warning">ℹ️ Account BUYER: usa il download XML per l\'import manuale</div>';
+                    }
+                } else {
+                    statusDiv.innerHTML = '<div class="status status-warning">⚠️ Credenziali BrickLink non configurate</div>';
+                    credentialsStatus.innerHTML = '<div class="status status-warning">⚙️ Configura le credenziali per continuare</div>';
+                    uploadSection.style.display = 'none';
+                    existingListsSection.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking BrickLink status:', error);
+                document.getElementById('status-display').innerHTML = '<div class="status status-error">❌ Errore nel controllo stato BrickLink</div>';
+            }
+        }
+        
+        async function saveCredentials() {
+            const credentials = {
+                consumer_key: document.getElementById('consumer-key').value,
+                consumer_secret: document.getElementById('consumer-secret').value,
+                token: document.getElementById('token').value,
+                token_secret: document.getElementById('token-secret').value
+            };
+            
+            if (!credentials.consumer_key || !credentials.consumer_secret || !credentials.token || !credentials.token_secret) {
+                alert('Tutti i campi sono obbligatori!');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/bricklink/setup', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(credentials)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('status-display').innerHTML = '<div class="status status-success">✅ ' + data.message + '</div>';
+                    setTimeout(() => {
+                        checkBrickLinkStatus();
+                    }, 1000);
+                } else {
+                    document.getElementById('status-display').innerHTML = '<div class="status status-error">❌ ' + data.message + '</div>';
+                }
+            } catch (error) {
+                console.error('Error saving credentials:', error);
+                document.getElementById('status-display').innerHTML = '<div class="status status-error">❌ Errore nel salvataggio credenziali</div>';
+            }
+        }
+        
+        async function testConnection() {
+            document.getElementById('status-display').innerHTML = '<div class="status status-warning">🔄 Test connessione in corso...</div>';
+            
+            try {
+                const response = await fetch('/bricklink/status');
+                const data = await response.json();
+                
+                if (data.connected) {
+                    document.getElementById('status-display').innerHTML = '<div class="status status-success">✅ Connessione BrickLink riuscita!</div>';
+                } else {
+                    document.getElementById('status-display').innerHTML = '<div class="status status-error">❌ ' + (data.error || 'Connessione fallita') + '</div>';
+                }
+            } catch (error) {
+                console.error('Error testing connection:', error);
+                document.getElementById('status-display').innerHTML = '<div class="status status-error">❌ Errore nel test connessione</div>';
+            }
+        }
+        
+        async function loadXmlFiles() {
+            try {
+                const response = await fetch('/bricklink/xml-files');
+                const data = await response.json();
+                
+                const xmlFilesList = document.getElementById('xml-files-list');
+                xmlFilesList.innerHTML = '';
+                
+                if (data.xml_files && data.xml_files.length > 0) {
+                    data.xml_files.forEach(file => {
+                        const item = document.createElement('div');
+                        item.className = 'xml-file-item';
+                        item.innerHTML = `
+                            <div>
+                                <strong>${file.name}</strong><br>
+                                <small>Size: ${(file.size / 1024).toFixed(1)} KB - Modified: ${file.modified}</small>
+                            </div>
+                        `;
+                        item.onclick = () => selectXmlFile(file.name, item);
+                        xmlFilesList.appendChild(item);
+                    });
+                } else {
+                    xmlFilesList.innerHTML = '<p>Nessun file XML trovato nella cartella reports.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading XML files:', error);
+                xmlFilesList.innerHTML = '<p>Errore nel caricamento dei file XML.</p>';
+            }
+        }
+        
+        function selectXmlFile(fileName, element) {
+            // Rimuovi selezione precedente
+            document.querySelectorAll('.xml-file-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Seleziona il nuovo file
+            element.classList.add('selected');
+            selectedXmlFile = fileName;
+            document.getElementById('upload-btn').disabled = false;
+            document.getElementById('download-btn').disabled = false;
+        }
+        
+        function downloadSelectedXML() {
+            if (!selectedXmlFile) {
+                alert('Seleziona prima un file XML!');
+                return;
+            }
+            
+            // Crea link di download
+            const link = document.createElement('a');
+            link.href = '/reports/' + selectedXmlFile;
+            link.download = selectedXmlFile;
+            link.style.display = 'none';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            document.getElementById('status-display').innerHTML = '<div class="status status-success">✅ File XML scaricato: ' + selectedXmlFile + '</div>';
+        }
+        
+        function showImportInstructions() {
+            const instructions = document.getElementById('import-instructions');
+            if (instructions.classList.contains('hidden')) {
+                instructions.classList.remove('hidden');
+                document.getElementById('instructions-btn').textContent = '🔼 Nascondi Istruzioni';
+            } else {
+                instructions.classList.add('hidden');
+                document.getElementById('instructions-btn').textContent = '📖 Istruzioni Import Manuale';
+            }
+        }
+        
+        async function uploadToSetkLink() {
+            if (!selectedXmlFile) {
+                alert('Seleziona prima un file XML!');
+                return;
+            }
+            
+            const listName = document.getElementById('list-name').value || selectedXmlFile.replace('.xml', '');
+            
+            document.getElementById('status-display').innerHTML = '<div class="status status-warning">🚀 Upload in corso...</div>';
+            
+            try {
+                const response = await fetch('/bricklink/upload', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        xml_file: selectedXmlFile,
+                        list_name: listName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('status-display').innerHTML = '<div class="status status-success">✅ ' + data.message + '</div>';
+                    loadWantedLists(); // Aggiorna la lista
+                } else {
+                    document.getElementById('status-display').innerHTML = '<div class="status status-error">❌ ' + data.error + '</div>';
+                }
+            } catch (error) {
+                console.error('Error uploading to BrickLink:', error);
+                document.getElementById('status-display').innerHTML = '<div class="status status-error">❌ Errore durante l\'upload</div>';
+            }
+        }
+        
+        async function loadWantedLists() {
+            try {
+                const response = await fetch('/bricklink/lists');
+                const data = await response.json();
+                
+                const wantedListsDiv = document.getElementById('wanted-lists');
+                
+                if (data.wanted_lists && data.wanted_lists.length > 0) {
+                    wantedListsDiv.innerHTML = '';
+                    
+                    data.wanted_lists.forEach(list => {
+                        const item = document.createElement('div');
+                        item.className = 'wanted-list-item';
+                        item.innerHTML = `
+                            <div>
+                                <strong>${list.name}</strong><br>
+                                <small>${list.items_count} items - Created: ${list.created}</small>
+                            </div>
+                            <div>
+                                <span style="color: #666;">ID: ${list.id}</span>
+                            </div>
+                        `;
+                        wantedListsDiv.appendChild(item);
+                    });
+                } else {
+                    wantedListsDiv.innerHTML = '<p>Nessuna wanted list trovata.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading wanted lists:', error);
+                document.getElementById('wanted-lists').innerHTML = '<p>Errore nel caricamento delle liste.</p>';
+            }
+        }
+    </script>
+</body>
+</html>

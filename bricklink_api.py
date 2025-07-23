@@ -120,6 +120,26 @@ class BrickLinkAPI:
         """Get specific inventory by ID"""
         return self._make_request('GET', f'/inventories/{inventory_id}')
     
+    def get_user_info(self):
+        """Get current user information including account type"""
+        try:
+            response = self._make_request('GET', '/users/me')
+            return response
+        except Exception as e:
+            logging.error(f"Error getting user info: {e}")
+            raise BrickLinkAPIError(f"Failed to get user info: {str(e)}")
+    
+    def is_seller_account(self):
+        """Check if the current account is a seller account"""
+        try:
+            user_info = self.get_user_info()
+            # Check if user has seller privileges (based on BrickLink API documentation)
+            user_data = user_info.get('data', {})
+            return user_data.get('store_name') is not None and user_data.get('store_name') != ''
+        except Exception as e:
+            logging.warning(f"Could not determine account type: {e}")
+            return False
+    
     def get_wanted_lists(self):
         """Get all wanted lists"""
         logging.info("Fetching wanted lists...")
@@ -140,6 +160,25 @@ class BrickLinkAPI:
     def add_wanted_list_items(self, wanted_list_id, items):
         """Add items to wanted list"""
         return self._make_request('POST', f'/wanted_lists/{wanted_list_id}/items', data=items)
+    
+    def delete_wanted_list(self, wanted_list_id):
+        """Delete wanted list"""
+        logging.info(f"Deleting wanted list ID: {wanted_list_id}")
+        return self._make_request('DELETE', f'/wanted_lists/{wanted_list_id}')
+    
+    def clear_wanted_list_items(self, wanted_list_id):
+        """Clear all items from wanted list"""
+        logging.info(f"Clearing all items from wanted list ID: {wanted_list_id}")
+        return self._make_request('DELETE', f'/wanted_lists/{wanted_list_id}/items')
+    
+    def update_wanted_list(self, wanted_list_id, name=None, description=None):
+        """Update wanted list details"""
+        data = {}
+        if name:
+            data['name'] = name
+        if description:
+            data['description'] = description
+        return self._make_request('PUT', f'/wanted_lists/{wanted_list_id}', data=data)
     
     def get_item_info(self, item_type, item_id, color_id=None):
         """Get item information from catalog"""
@@ -241,53 +280,172 @@ class BrickLinkSync:
         logging.info(f"Saved inventory as XML: {xml_file}")
         return xml_file
     
-    def upload_wanted_list(self, xml_file, list_name=None):
-        """Upload XML wanted list to BrickLink"""
+    def upload_wanted_list(self, xml_file, list_name=None, replace_existing=True):
+        """
+        Upload XML wanted list to BrickLink with advanced replacement options
+        
+        Args:
+            xml_file (str): Path to XML file containing wanted list
+            list_name (str): Name for the wanted list (auto-generated if None)
+            replace_existing (bool): If True, replaces existing list with same name
+        
+        Returns:
+            dict: Information about the uploaded wanted list
+        """
         try:
             if list_name is None:
-                list_name = f"Imported_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                # Generate name from filename or timestamp
+                filename = Path(xml_file).stem
+                if filename.startswith('wanted_list_'):
+                    list_name = f"LEGO Analysis - {filename.replace('wanted_list_', '').replace('_', ' ').title()}"
+                else:
+                    list_name = f"LEGO Analysis - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             
             # Parse XML file
             import xml.etree.ElementTree as ET
             tree = ET.parse(xml_file)
             root = tree.getroot()
             
-            # Create wanted list
-            wanted_list = self.api.create_wanted_list(list_name)
-            wanted_list_id = wanted_list['data']['wanted_list_id']
+            wanted_list_id = None
+            
+            # Check if we should replace existing list
+            if replace_existing:
+                existing_lists = self.api.get_wanted_lists()
+                if existing_lists.get('data'):
+                    for existing_list in existing_lists['data']:
+                        if existing_list['name'] == list_name:
+                            wanted_list_id = existing_list['wanted_list_id']
+                            logging.info(f"Found existing wanted list '{list_name}' (ID: {wanted_list_id})")
+                            
+                            # Clear existing items
+                            try:
+                                self.api.clear_wanted_list_items(wanted_list_id)
+                                logging.info(f"Cleared existing items from wanted list")
+                            except Exception as e:
+                                logging.warning(f"Could not clear existing items: {e}")
+                                # If clearing fails, delete and recreate
+                                self.api.delete_wanted_list(wanted_list_id)
+                                wanted_list_id = None
+                            break
+            
+            # Create new wanted list if needed
+            if wanted_list_id is None:
+                description = f"Auto-generated from LEGO Analysis System on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                wanted_list = self.api.create_wanted_list(list_name, description)
+                wanted_list_id = wanted_list['data']['wanted_list_id']
+                logging.info(f"Created new wanted list '{list_name}' (ID: {wanted_list_id})")
             
             # Convert XML items to API format
             items = []
+            skipped_items = 0
+            
             for item_elem in root.findall('ITEM'):
-                item_data = {
-                    'item': {
-                        'no': item_elem.find('ITEMID').text,
-                        'type': item_elem.find('ITEMTYPE').text if item_elem.find('ITEMTYPE') is not None else 'P'
-                    },
-                    'color_id': int(item_elem.find('COLOR').text) if item_elem.find('COLOR') is not None else 0,
-                    'min_quantity': int(item_elem.find('MINQTY').text) if item_elem.find('MINQTY') is not None else 1,
-                    'max_price': item_elem.find('PRICE').text if item_elem.find('PRICE') is not None else None,
-                    'condition': item_elem.find('CONDITION').text if item_elem.find('CONDITION') is not None else 'N'
-                }
-                
-                if item_elem.find('REMARKS') is not None:
-                    item_data['remarks'] = item_elem.find('REMARKS').text
-                
-                items.append(item_data)
+                try:
+                    item_id = item_elem.find('ITEMID')
+                    if item_id is None or not item_id.text:
+                        skipped_items += 1
+                        continue
+                    
+                    item_data = {
+                        'item': {
+                            'no': item_id.text,
+                            'type': item_elem.find('ITEMTYPE').text if item_elem.find('ITEMTYPE') is not None else 'P'
+                        },
+                        'color_id': int(item_elem.find('COLOR').text) if item_elem.find('COLOR') is not None else 0,
+                        'min_quantity': int(item_elem.find('MINQTY').text) if item_elem.find('MINQTY') is not None else 1,
+                        'condition': item_elem.find('CONDITION').text if item_elem.find('CONDITION') is not None else 'N'
+                    }
+                    
+                    # Optional fields
+                    if item_elem.find('PRICE') is not None and item_elem.find('PRICE').text:
+                        try:
+                            max_price = float(item_elem.find('PRICE').text)
+                            if max_price > 0:
+                                item_data['max_price'] = str(max_price)
+                        except ValueError:
+                            pass
+                    
+                    if item_elem.find('REMARKS') is not None and item_elem.find('REMARKS').text:
+                        item_data['remarks'] = item_elem.find('REMARKS').text[:250]  # BrickLink limit
+                    
+                    items.append(item_data)
+                    
+                except Exception as e:
+                    logging.warning(f"Skipped invalid item: {e}")
+                    skipped_items += 1
+                    continue
+            
+            if not items:
+                raise ValueError("No valid items found in XML file")
             
             # Upload items in batches (BrickLink API has limits)
             batch_size = 100
+            uploaded_batches = 0
+            
             for i in range(0, len(items), batch_size):
                 batch = items[i:i + batch_size]
-                self.api.add_wanted_list_items(wanted_list_id, batch)
-                logging.info(f"Uploaded batch {i//batch_size + 1}/{(len(items) + batch_size - 1)//batch_size}")
-                time.sleep(2)  # Rate limiting
+                try:
+                    self.api.add_wanted_list_items(wanted_list_id, batch)
+                    uploaded_batches += 1
+                    batch_num = i//batch_size + 1
+                    total_batches = (len(items) + batch_size - 1)//batch_size
+                    logging.info(f"✅ Uploaded batch {batch_num}/{total_batches} ({len(batch)} items)")
+                    
+                    # Rate limiting - be gentle with BrickLink API
+                    if batch_num < total_batches:
+                        time.sleep(2)
+                        
+                except Exception as e:
+                    logging.error(f"Failed to upload batch {i//batch_size + 1}: {e}")
+                    # Continue with remaining batches
+                    time.sleep(5)  # Longer wait after error
+                    continue
             
-            logging.info(f"Successfully uploaded wanted list '{list_name}' with {len(items)} items")
-            return wanted_list_id
+            # Summary
+            success_items = uploaded_batches * batch_size if uploaded_batches * batch_size <= len(items) else len(items)
+            result = {
+                'wanted_list_id': wanted_list_id,
+                'list_name': list_name,
+                'total_items': len(items),
+                'uploaded_items': success_items,
+                'skipped_items': skipped_items,
+                'batches_uploaded': uploaded_batches,
+                'action': 'replaced' if replace_existing else 'created'
+            }
+            
+            logging.info(f"🎉 Successfully {'replaced' if replace_existing else 'created'} wanted list '{list_name}' with {success_items}/{len(items)} items")
+            if skipped_items > 0:
+                logging.warning(f"⚠️ Skipped {skipped_items} invalid items")
+            
+            return result
             
         except Exception as e:
-            logging.error(f"Error uploading wanted list: {e}")
+            logging.error(f"❌ Error uploading wanted list: {e}")
+            raise BrickLinkAPIError(f"Failed to upload wanted list: {str(e)}")
+    
+    def upload_wanted_list_from_analysis(self, xml_file, credentials_dict=None):
+        """
+        Convenience method to upload wanted list with user credentials
+        
+        Args:
+            xml_file (str): Path to XML wanted list file
+            credentials_dict (dict): BrickLink API credentials
+        
+        Returns:
+            dict: Upload result information
+        """
+        try:
+            # Use provided credentials or load from file
+            if credentials_dict:
+                temp_api = BrickLinkAPI(**credentials_dict)
+                temp_sync = BrickLinkSync(temp_api)
+                return temp_sync.upload_wanted_list(xml_file, replace_existing=True)
+            else:
+                # Use existing API instance
+                return self.upload_wanted_list(xml_file, replace_existing=True)
+                
+        except Exception as e:
+            logging.error(f"Failed to upload wanted list from analysis: {e}")
             raise
     
     def sync_price_data(self, xml_file):

@@ -9,7 +9,10 @@ matplotlib.use('Agg')  # Non-interactive backend for web applications
 import matplotlib.pyplot as plt
 plt.ioff()  # Turn off interactive mode
 
-from flask import Flask, render_template, request, jsonify, send_file, flash, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, send_from_directory
+import os
+import logging
+from datetime import datetime
 from werkzeug.utils import secure_filename
 import os
 import json
@@ -46,6 +49,18 @@ except ImportError as e:
     DashboardAnalytics = None
     create_dashboard_app = None
     DASHBOARD_AVAILABLE = False
+
+try:
+    from bricklink_api import BrickLinkAPI, BrickLinkSync, BrickLinkCredentialManager, BrickLinkAPIError
+    BRICKLINK_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Warning: Could not import bricklink_api: {e}")
+    print("   BrickLink integration will be disabled")
+    BrickLinkAPI = None
+    BrickLinkSync = None  
+    BrickLinkCredentialManager = None
+    BrickLinkAPIError = None
+    BRICKLINK_AVAILABLE = False
 
 # Load configuration
 def load_config():
@@ -460,10 +475,252 @@ def cleanup_files():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/reports/<filename>')
+def download_xml_file(filename):
+    """Download XML or PDF reports"""
+    try:
+        reports_dir = os.path.join(os.getcwd(), 'reports')
+        file_path = os.path.join(reports_dir, filename)
+        
+        # Verifica che il file esista e sia nella cartella reports
+        if not os.path.exists(file_path) or not file_path.startswith(reports_dir):
+            return jsonify({'error': 'File non trovato'}), 404
+        
+        return send_from_directory(reports_dir, filename, as_attachment=True)
+        
+    except Exception as e:
+        logging.error(f"Error downloading file {filename}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/bricklink')
+def bricklink_page():
+    """BrickLink integration page"""
+    return render_template('bricklink.html')
+
+@app.route('/bricklink/xml-files')
+def bricklink_xml_files():
+    """Get available XML files for upload"""
+    try:
+        reports_dir = 'reports'
+        if not os.path.exists(reports_dir):
+            return jsonify({'xml_files': []})
+        
+        xml_files = []
+        for file in os.listdir(reports_dir):
+            if file.endswith('.xml'):
+                file_path = os.path.join(reports_dir, file)
+                stat = os.stat(file_path)
+                xml_files.append({
+                    'name': file,
+                    'size': stat.st_size,
+                    'modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                })
+        
+        # Ordina per data di modifica (più recente prima)
+        xml_files.sort(key=lambda x: x['modified'], reverse=True)
+        
+        return jsonify({'xml_files': xml_files})
+        
+    except Exception as e:
+        logging.error(f"Error listing XML files: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/test-upload')
 def test_upload():
     """Test page for debugging upload restart bug"""
     return render_template('test_upload.html')
+
+@app.route('/bricklink/setup', methods=['GET', 'POST'])
+def bricklink_setup():
+    """Setup or update BrickLink API credentials"""
+    if not BRICKLINK_AVAILABLE:
+        return jsonify({'error': 'BrickLink integration not available'}), 503
+    
+    if request.method == 'GET':
+        # Check if credentials exist
+        cred_manager = BrickLinkCredentialManager()
+        try:
+            cred_manager.load_credentials()
+            has_credentials = True
+        except FileNotFoundError:
+            has_credentials = False
+        
+        return jsonify({'has_credentials': has_credentials})
+    
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            required_fields = ['consumer_key', 'consumer_secret', 'token', 'token_secret']
+            for field in required_fields:
+                if not data.get(field):
+                    return jsonify({'error': f'Missing required field: {field}'}), 400
+            
+            # Save credentials
+            cred_manager = BrickLinkCredentialManager()
+            cred_manager.save_credentials(
+                data['consumer_key'],
+                data['consumer_secret'], 
+                data['token'],
+                data['token_secret']
+            )
+            
+            # Test connection
+            credentials = cred_manager.load_credentials()
+            api = BrickLinkAPI(**credentials)
+            
+            try:
+                # Test with a simple API call
+                test_result = api.get_wanted_lists()
+                logging.info("✅ BrickLink API connection successful")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'BrickLink credentials saved and tested successfully!',
+                    'test_result': f"Connected successfully. Found {len(test_result.get('data', []))} wanted lists."
+                })
+                
+            except Exception as e:
+                logging.error(f"❌ BrickLink API test failed: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': f'Credentials saved but API test failed: {str(e)}',
+                    'test_failed': True
+                }), 400
+                
+        except Exception as e:
+            logging.error(f"Error setting up BrickLink credentials: {e}")
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/bricklink/upload', methods=['POST'])
+def bricklink_upload():
+    """Upload wanted list to BrickLink"""
+    if not BRICKLINK_AVAILABLE:
+        return jsonify({'error': 'BrickLink integration not available'}), 503
+    
+    try:
+        data = request.get_json()
+        xml_file = data.get('xml_file')
+        list_name = data.get('list_name')
+        
+        if not xml_file:
+            return jsonify({'error': 'No XML file specified'}), 400
+        
+        # Check if file exists
+        xml_path = os.path.join('reports', xml_file)
+        if not os.path.exists(xml_path):
+            return jsonify({'error': f'XML file not found: {xml_file}'}), 404
+        
+        # Load credentials
+        try:
+            cred_manager = BrickLinkCredentialManager()
+            credentials = cred_manager.load_credentials()
+        except FileNotFoundError:
+            return jsonify({'error': 'BrickLink credentials not configured. Please set up credentials first.'}), 401
+        
+        # Initialize API and sync
+        api = BrickLinkAPI(**credentials)
+        sync = BrickLinkSync(api)
+        
+        # Upload with automatic replacement
+        logging.info(f"📤 Starting BrickLink upload for: {xml_file}")
+        result = sync.upload_wanted_list(xml_path, list_name, replace_existing=True)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully {result["action"]} wanted list on BrickLink!',
+            'details': {
+                'list_name': result['list_name'],
+                'wanted_list_id': result['wanted_list_id'],
+                'total_items': result['total_items'],
+                'uploaded_items': result['uploaded_items'],
+                'skipped_items': result['skipped_items'],
+                'action': result['action']
+            }
+        })
+        
+    except BrickLinkAPIError as e:
+        logging.error(f"BrickLink API error: {e}")
+        return jsonify({'error': f'BrickLink API error: {str(e)}'}), 500
+    except Exception as e:
+        logging.error(f"Error uploading to BrickLink: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/bricklink/status')
+def bricklink_status():
+    """Check BrickLink integration status"""
+    if not BRICKLINK_AVAILABLE:
+        return jsonify({
+            'available': False,
+            'error': 'BrickLink integration not available - missing dependencies'
+        })
+    
+    try:
+        # Check credentials
+        cred_manager = BrickLinkCredentialManager()
+        credentials = cred_manager.load_credentials()
+        
+        # Test API connection
+        api = BrickLinkAPI(**credentials)
+        user_info = api.get_user_info()
+        is_seller = api.is_seller_account()
+        
+        return jsonify({
+            'available': True,
+            'connected': True,
+            'is_seller': is_seller,
+            'user_name': user_info.get('data', {}).get('real_name', 'Unknown'),
+            'store_name': user_info.get('data', {}).get('store_name', None),
+            'message': f'Connected as {"SELLER" if is_seller else "BUYER"} account'
+        })
+        
+    except FileNotFoundError:
+        return jsonify({
+            'available': True,
+            'connected': False,
+            'message': 'BrickLink credentials not configured'
+        })
+    except Exception as e:
+        return jsonify({
+            'available': True,
+            'connected': False,
+            'error': str(e),
+            'message': 'BrickLink connection failed'
+        })
+
+@app.route('/bricklink/lists')
+def bricklink_lists():
+    """Get user's BrickLink wanted lists"""
+    if not BRICKLINK_AVAILABLE:
+        return jsonify({'error': 'BrickLink integration not available'}), 503
+    
+    try:
+        # Load credentials
+        cred_manager = BrickLinkCredentialManager()
+        credentials = cred_manager.load_credentials()
+        
+        # Get wanted lists
+        api = BrickLinkAPI(**credentials)
+        result = api.get_wanted_lists()
+        
+        wanted_lists = []
+        for wl in result.get('data', []):
+            wanted_lists.append({
+                'id': wl['wanted_list_id'],
+                'name': wl['name'],
+                'description': wl.get('description', ''),
+                'items_count': wl.get('items_count', 0),
+                'created': wl.get('date_created', '')
+            })
+        
+        return jsonify({'wanted_lists': wanted_lists})
+        
+    except FileNotFoundError:
+        return jsonify({'error': 'BrickLink credentials not configured'}), 401
+    except Exception as e:
+        logging.error(f"Error fetching BrickLink wanted lists: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("🚀 Avvio LEGO Analysis System...")
