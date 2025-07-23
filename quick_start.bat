@@ -1,38 +1,57 @@
 @echo off
-REM Quick start script for LEGO Analysis System (Windows)
+REM Quick start script for LEGO Analysis System - Python 3.13 Edition (Windows)
 
-echo 🟡 LEGO Analysis System - Quick Start
-echo =====================================
+echo 🟡 LEGO Analysis System - Quick Start (Python 3.13)
+echo =====================================================
 
-REM Check if Python is installed
+REM Check if Python 3.13 is available
+py -3.13 --version >nul 2>&1
+if not errorlevel 1 (
+    echo ✅ Python 3.13 trovato - Usando versione più recente
+    set PYTHON_CMD=py -3.13
+    py -3.13 --version
+    goto :check_env
+)
+
+REM Fallback to default python
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Python non trovato. Installa Python 3.6+ e riprova.
+    echo ❌ Python non trovato. Installa Python 3.13+ e riprova.
+    echo 📥 Scarica da: https://www.python.org/downloads/
     pause
     exit /b 1
 )
 
-echo ✅ Python trovato
+echo ⚠️  Usando Python di default (raccomandato: Python 3.13)
+set PYTHON_CMD=python
 python --version
 
-REM Check if lego_env virtual environment exists (preferred)
+:check_env
+REM Check if lego_env_313 virtual environment exists (Python 3.13 preferred)
+if exist "lego_env_313" (
+    echo 🔧 Usando ambiente virtuale Python 3.13 'lego_env_313'...
+    call lego_env_313\Scripts\activate.bat
+    goto :install_deps
+)
+
+REM Check if lego_env virtual environment exists (fallback)
 if exist "lego_env" (
     echo 🔧 Usando ambiente virtuale 'lego_env' esistente...
     call lego_env\Scripts\activate.bat
     goto :install_deps
 )
 
-REM Check if venv virtual environment exists (fallback)
+REM Check if venv virtual environment exists (legacy fallback)
 if exist "venv" (
     echo 🔧 Usando ambiente virtuale 'venv' esistente...
     call venv\Scripts\activate.bat
     goto :install_deps
 )
 
-REM Create new virtual environment
-echo 🔧 Creando nuovo ambiente virtuale 'lego_env'...
-python -m venv lego_env
-call lego_env\Scripts\activate.bat
+REM Create new virtual environment with Python 3.13
+echo 🔧 Creando nuovo ambiente virtuale Python 3.13 'lego_env_313'...
+%PYTHON_CMD% -m venv lego_env_313
+call lego_env_313\Scripts\activate.bat
 
 :install_deps
 REM Install/upgrade dependencies
