@@ -22,6 +22,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 import logging
+import tempfile
 
 # ReportLab imports
 try:
@@ -73,20 +74,6 @@ except ImportError:
 class ModernReportGenerator:
     """Generatore di report PDF moderni per collezioni LEGO"""
     
-    # Modern color palette
-    COLORS = {
-        'primary': HexColor('#2C3E50'),      # Dark blue-gray
-        'secondary': HexColor('#3498DB'),     # Bright blue
-        'accent': HexColor('#E74C3C'),        # Red
-        'success': HexColor('#27AE60'),       # Green
-        'warning': HexColor('#F39C12'),       # Orange
-        'info': HexColor('#9B59B6'),          # Purple
-        'light': HexColor('#ECF0F1'),         # Light gray
-        'dark': HexColor('#34495E'),          # Dark gray
-        'white': colors.white,
-        'black': colors.black
-    }
-    
     def __init__(self, folder_path, color_mapping_path, output_pdf, report_type='complete'):
         """
         Inizializza il generatore di report moderni
@@ -99,6 +86,20 @@ class ModernReportGenerator:
         """
         if not REPORTLAB_AVAILABLE:
             raise ImportError("ReportLab is required for modern reports. Install with: pip install reportlab")
+        
+        # Modern color palette (defined only when ReportLab is available)
+        self.COLORS = {
+            'primary': HexColor('#2C3E50'),      # Dark blue-gray
+            'secondary': HexColor('#3498DB'),     # Bright blue
+            'accent': HexColor('#E74C3C'),        # Red
+            'success': HexColor('#27AE60'),       # Green
+            'warning': HexColor('#F39C12'),       # Orange
+            'info': HexColor('#9B59B6'),          # Purple
+            'light': HexColor('#ECF0F1'),         # Light gray
+            'dark': HexColor('#34495E'),          # Dark gray
+            'white': colors.white,
+            'black': colors.black
+        }
             
         self.folder_path = folder_path
         self.color_mapping_path = color_mapping_path

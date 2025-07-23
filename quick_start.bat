@@ -15,18 +15,29 @@ if errorlevel 1 (
 echo ✅ Python trovato
 python --version
 
-REM Check if virtual environment exists
-if not exist "venv" (
-    echo 🔧 Creando ambiente virtuale...
-    python -m venv venv
+REM Check if lego_env virtual environment exists (preferred)
+if exist "lego_env" (
+    echo 🔧 Usando ambiente virtuale 'lego_env' esistente...
+    call lego_env\Scripts\activate.bat
+    goto :install_deps
 )
 
-REM Activate virtual environment
-echo 🔧 Attivando ambiente virtuale...
-call venv\Scripts\activate.bat
+REM Check if venv virtual environment exists (fallback)
+if exist "venv" (
+    echo 🔧 Usando ambiente virtuale 'venv' esistente...
+    call venv\Scripts\activate.bat
+    goto :install_deps
+)
 
-REM Install dependencies
-echo 📦 Installando dipendenze...
+REM Create new virtual environment
+echo 🔧 Creando nuovo ambiente virtuale 'lego_env'...
+python -m venv lego_env
+call lego_env\Scripts\activate.bat
+
+:install_deps
+REM Install/upgrade dependencies
+echo 📦 Installando/aggiornando dipendenze...
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 
 REM Check if config exists
