@@ -14,5 +14,13 @@
     "total_missing": 412,
     "unique_colors": 63,
     "sets_count": 48
+  },
+  "2025-08-04": {
+    "completion_percentage": 73.99473765670949,
+    "total_pieces": 32305,
+    "total_owned": 23904,
+    "total_missing": 8401,
+    "unique_colors": 64,
+    "sets_count": 50
   }
 }
