@@ -23,6 +23,8 @@ import zipfile
 import time
 from datetime import datetime
 import sys
+import webbrowser
+import threading
 
 # Import our analysis modules with error handling
 try:
@@ -768,15 +770,31 @@ if __name__ == '__main__':
     server_config = config.get('server', {})
     debug_mode = '--debug' in sys.argv or server_config.get('debug', False)
     
+    # Force port 5001 (override config if needed)
+    port = 5001
+    host = server_config.get('host', '0.0.0.0')
+    
     print(f"\n🚀 Avvio server in modalità {'DEBUG' if debug_mode else 'PRODUZIONE'}...")
+    print(f"🌐 Server accessibile su http://127.0.0.1:{port}")
+    
+    # Function to open browser after server starts
+    def open_browser():
+        time.sleep(1.5)  # Wait for server to start
+        url = f"http://127.0.0.1:{port}"
+        print(f"🌐 Apertura automatica browser...")
+        webbrowser.open(url)
+    
+    # Start browser opener in a separate thread (only in production mode)
+    if not debug_mode:
+        threading.Thread(target=open_browser, daemon=True).start()
     
     if debug_mode:
         print("⚠️  Modalità debug: auto-reload abilitato (esclusi uploads)")
         # Debug mode with selective file watching
         app.run(
             debug=True, 
-            host=server_config.get('host', '0.0.0.0'), 
-            port=server_config.get('port', 5000),
+            host=host, 
+            port=port,
             use_reloader=True,
             reloader_options={
                 'exclude_patterns': server_config.get('exclude_patterns', [
@@ -789,8 +807,8 @@ if __name__ == '__main__':
         # Production mode - completely disable file monitoring
         app.run(
             debug=False, 
-            host=server_config.get('host', '0.0.0.0'), 
-            port=server_config.get('port', 5000),
+            host=host, 
+            port=port,
             use_reloader=False,
             use_debugger=False,
             passthrough_errors=False,
